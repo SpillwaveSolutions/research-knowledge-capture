@@ -19,6 +19,7 @@ jobs:
         run: |
           python3 tests/test_plugin.py
           python3 tests/test_rkc.py
+          python3 tests/test_extract.py
       - name: Validate sample-knowledge
         run: python3 scripts/rkc_validate.py --root sample-knowledge
       - name: Pack spine from Subject
@@ -26,3 +27,5 @@ jobs:
           python3 scripts/rkc_pack.py subject.loop-policy.01J8X000000000000000000001 \
             --root sample-knowledge > /tmp/pack.json
           python3 -c "import json; d=json.load(open('/tmp/pack.json')); ids={n['id'] for n in d['nodes']}; types={n['type'] for n in d['nodes']}; assert 'Claim' in types and 'Evidence' in types, d; assert 'claim.loop-policy.01J8X000000000000000000006' in ids"
+      - name: Segment sample dump
+        run: python3 scripts/rkc_segment.py sample-knowledge/research/source-assets/3134869d568209bfb387f9a6b8eeada1e0596b64e90460b623fa58e187f77169/original.md

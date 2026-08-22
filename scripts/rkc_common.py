@@ -12,6 +12,7 @@ except ImportError:
     yaml = None
 
 FM_RE = re.compile(r"^---\n(.*?)\n---\n?(.*)$", re.S)
+ACTOR = "grok-bot/research-knowledge-capture"
 OWNED_RELS = {
     "has_subject",
     "related_to",
@@ -46,6 +47,39 @@ FOLDER_FOR = {
     "Evidence": "evidence",
     "Finding": "findings",
 }
+PROTECTED_STATUS = {"reviewed", "accepted"}
+SKIP_DIR_NAMES = {"source-assets", "catalogs", "pr-summaries"}
+KEY_ORDER = [
+    "type",
+    "id",
+    "title",
+    "description",
+    "status",
+    "verified",
+    "generated",
+    "vendor",
+    "source_kind",
+    "source_hash",
+    "asset_path",
+    "original_filename",
+    "captured_at",
+    "ingest_version",
+    "ingest_key",
+    "prompt_hash",
+    "claim_kind",
+    "claim_key",
+    "kind",
+    "verbatim",
+    "text",
+    "locator",
+    "confidence",
+    "as_of",
+    "truth_state",
+    "author",
+    "timestamp",
+    "tags",
+    "links",
+]
 
 
 def plugin_root() -> Path:
@@ -86,7 +120,6 @@ def _mini_yaml(raw: str) -> dict:
     """Subset parser: scalars, nested maps, list-of-maps, inline lists."""
     root: dict = {}
     stack: list[tuple[int, dict | list]] = [(-1, root)]
-    pending_list_item: dict | None = None
 
     def container() -> dict | list:
         return stack[-1][1]
@@ -113,9 +146,6 @@ def _mini_yaml(raw: str) -> dict:
                 item = _scalar(rest)
             if isinstance(parent, list):
                 parent.append(item)
-            else:
-                # should not happen if previous key opened a list
-                pass
             if isinstance(item, dict):
                 stack.append((ind, item))
             continue
@@ -124,7 +154,6 @@ def _mini_yaml(raw: str) -> dict:
         k, v = stripped.split(":", 1)
         k, v = k.strip(), v.strip()
         if v == "" or v in {"|", ">"}:
-            # peek next non-empty line to decide list vs map
             nxt = None
             for look in lines[i:]:
                 if look.strip() and not look.strip().startswith("#"):
@@ -170,7 +199,7 @@ def iter_okf(knowledge_root: Path):
     for p in sorted(research.rglob("*.md")):
         if p.name.lower() in {"index.md", "readme.md"}:
             continue
-        if "source-assets" in p.parts or "catalogs" in p.parts:
+        if any(part in SKIP_DIR_NAMES for part in p.parts):
             continue
         fm, body = parse_okf(p)
         yield p, fm, body
@@ -207,3 +236,100 @@ def resolve_asset(root: Path, asset_path: str) -> Path:
         if c.exists() and c.is_file():
             return c
     return candidates[0] if candidates else p
+
+
+def is_protected(fm: dict) -> bool:
+    if fm.get("verified") is True:
+        return True
+    return (fm.get("status") or "") in PROTECTED_STATUS
+
+
+def _needs_quote(s: str) -> bool:
+    if s == "" or s[0] in " &*!|>%@`'\"" or s.strip() != s:
+        return True
+    if s.lower() in {"true", "false", "null", "yes", "no", "on", "off"}:
+        return True
+    if any(c in s for c in "\n#{}[]"):
+        return True
+    if s.startswith("-") or s.startswith(":"):
+        return True
+    if ": " in s:
+        return True
+    return False
+
+
+def yaml_scalar(v) -> str:
+    if v is True:
+        return "true"
+    if v is False:
+        return "false"
+    if v is None:
+        return "null"
+    if isinstance(v, int) and not isinstance(v, bool):
+        return str(v)
+    if isinstance(v, float):
+        return str(v)
+    s = str(v)
+    if _needs_quote(s):
+        return json.dumps(s, ensure_ascii=False)
+    return s
+
+
+def dump_frontmatter(fm: dict) -> str:
+    keys = [k for k in KEY_ORDER if k in fm]
+    keys.extend(k for k in fm if k not in keys and not str(k).startswith("_"))
+    lines: list[str] = []
+    for k in keys:
+        v = fm[k]
+        if isinstance(v, list):
+            if not v:
+                lines.append(f"{k}: []")
+                continue
+            if all(isinstance(x, dict) for x in v):
+                lines.append(f"{k}:")
+                for item in v:
+                    first = True
+                    for ik, iv in item.items():
+                        prefix = "  - " if first else "    "
+                        lines.append(f"{prefix}{ik}: {yaml_scalar(iv)}")
+                        first = False
+            else:
+                inner = ", ".join(yaml_scalar(x) for x in v)
+                lines.append(f"{k}: [{inner}]")
+        elif isinstance(v, dict):
+            lines.append(f"{k}:")
+            for ik, iv in v.items():
+                lines.append(f"  {ik}: {yaml_scalar(iv)}")
+        else:
+            lines.append(f"{k}: {yaml_scalar(v)}")
+    return "\n".join(lines)
+
+
+def write_okf(path: Path, fm: dict, body: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = (body or "").lstrip("\n")
+    if body and not body.endswith("\n"):
+        body += "\n"
+    path.write_text(f"---\n{dump_frontmatter(fm)}\n---\n\n{body}", encoding="utf-8")
+
+
+def add_link(path: Path, rel: str, target: str) -> bool:
+    if rel not in OWNED_RELS:
+        raise ValueError(f"unknown rel {rel!r}")
+    fm, body = parse_okf(path)
+    links = [l for l in (fm.get("links") or []) if isinstance(l, dict)]
+    for link in links:
+        if link.get("rel") == rel and link.get("target") == target:
+            return False
+    links.append({"rel": rel, "target": target})
+    fm["links"] = links
+    write_okf(path, fm, body)
+    return True
+
+
+def concept_dir(knowledge: Path, type_name: str, subject_slug: str | None = None, shard: bool = False) -> Path:
+    folder = FOLDER_FOR[type_name]
+    base = knowledge / "research" / folder
+    if shard and type_name in {"Claim", "Evidence"} and subject_slug:
+        return base / subject_slug
+    return base

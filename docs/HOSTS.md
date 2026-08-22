@@ -10,4 +10,4 @@
 | Codex | `.codex-plugin/plugin.json` | `codex plugin marketplace add SpillwaveSolutions/research-knowledge-capture` |
 | Cursor | `.cursor-plugin/plugin.json` + `.cursor/rules/` | `/plugin install research-knowledge-capture` |
 
-Commands: `/research-ingest`, `/research-pack`, `/research-validate` (Codex: `$research-ingest`).
+Commands: `/research-ingest`, `/research-extract`, `/research-pack`, `/research-validate` (Codex: `$research-ingest`).

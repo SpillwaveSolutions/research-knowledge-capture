@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Idempotent inbox ingest skeleton.
+"""Idempotent inbox ingest.
 
-Full LLM extraction is agent-driven. This hashes, archives, and writes
-SourceDocument + ResearchTask shells. Same bytes + extractor version
-returns the existing nodes (ADR 004).
+Hashes, archives, writes SourceDocument + ResearchTask shells.
+Same bytes + prompt hash + extractor version returns existing nodes (ADR 004).
+Optional --extract runs the Phase 2 extractor after the shell lands.
 """
 from __future__ import annotations
 
@@ -26,6 +26,11 @@ def sha256_file(p: Path) -> str:
     return h.hexdigest()
 
 
+def ingest_key_for(digest: str, extractor_version: str, prompt_hash: str = "") -> str:
+    raw = f"{digest}|{prompt_hash or ''}|{extractor_version}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
 def find_existing(knowledge: Path, ingest_key: str) -> dict | None:
     sources = knowledge / "research" / "sources"
     if not sources.exists():
@@ -45,23 +50,51 @@ def find_existing(knowledge: Path, ingest_key: str) -> dict | None:
                 "task_id": task_id,
                 "sha256": (fm.get("source_hash") or "").split(":")[-1],
                 "ingest_key": ingest_key,
+                "asset_path": fm.get("asset_path"),
                 "idempotent": True,
             }
     return None
 
 
-def ingest_file(src: Path, knowledge: Path, vendor: str, subject: str, extractor_version: str = "1"):
+def ingest_file(
+    src: Path,
+    knowledge: Path,
+    vendor: str,
+    subject: str,
+    extractor_version: str = "1",
+    prompt_hash: str = "",
+    extract: bool = False,
+    subject_id: str | None = None,
+    overlay: dict | None = None,
+    dry_run: bool = False,
+    shard: bool = True,
+):
     digest = sha256_file(src)
-    ingest_key = hashlib.sha256(f"{digest}|{extractor_version}".encode()).hexdigest()
+    ingest_key = ingest_key_for(digest, extractor_version, prompt_hash)
     existing = find_existing(knowledge, ingest_key)
     if existing:
+        if extract:
+            existing["extract"] = _run_extract(
+                knowledge,
+                existing.get("asset_path"),
+                vendor,
+                subject,
+                subject_id,
+                existing.get("source_id"),
+                existing.get("task_id"),
+                overlay,
+                extractor_version,
+                prompt_hash,
+                shard,
+                dry_run,
+            )
         return existing
     asset_dir = knowledge / "research" / "source-assets" / digest
     asset_dir.mkdir(parents=True, exist_ok=True)
-    dest = asset_dir / "original.md"
+    dest = asset_dir / ("original" + (src.suffix or ".md"))
     if not dest.exists():
         shutil.copy2(src, dest)
-    rel_asset = f"research/source-assets/{digest}/original.md"
+    rel_asset = f"research/source-assets/{digest}/{dest.name}"
     source_id = make_id("SourceDocument", subject)
     task_id = make_id("ResearchTask", subject)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -83,6 +116,7 @@ original_filename: {src.name}
 captured_at: {now}
 ingest_version: "{extractor_version}"
 ingest_key: {ingest_key}
+prompt_hash: "{prompt_hash or ''}"
 ---
 Archived dump `{src.name}`.
 """,
@@ -107,7 +141,7 @@ Shell task created by rkc_ingest. Extractor should add Findings/Claims.
 """,
         encoding="utf-8",
     )
-    return {
+    result = {
         "source_id": source_id,
         "task_id": task_id,
         "sha256": digest,
@@ -115,6 +149,54 @@ Shell task created by rkc_ingest. Extractor should add Findings/Claims.
         "idempotent": False,
         "asset_path": rel_asset,
     }
+    if extract:
+        result["extract"] = _run_extract(
+            knowledge,
+            rel_asset,
+            vendor,
+            subject,
+            subject_id,
+            source_id,
+            task_id,
+            overlay,
+            extractor_version,
+            prompt_hash,
+            shard,
+            dry_run,
+        )
+    return result
+
+
+def _run_extract(
+    knowledge,
+    asset_path,
+    vendor,
+    subject,
+    subject_id,
+    source_id,
+    task_id,
+    overlay,
+    extractor_version,
+    prompt_hash,
+    shard,
+    dry_run,
+):
+    from rkc_extract import EXTRACTOR_VERSION, run_extract
+
+    return run_extract(
+        knowledge=knowledge,
+        asset_path=asset_path,
+        subject_id=subject_id,
+        subject_slug=subject,
+        vendor=vendor,
+        source_id=source_id,
+        task_id=task_id,
+        overlay=overlay,
+        extractor_version=extractor_version or EXTRACTOR_VERSION,
+        prompt_hash=prompt_hash,
+        shard=shard,
+        dry_run=dry_run,
+    )
 
 
 def main():
@@ -123,16 +205,42 @@ def main():
     ap.add_argument("--knowledge", type=Path, default=plugin_root() / "sample-knowledge")
     ap.add_argument("--vendor", default="grok")
     ap.add_argument("--subject", default="unsorted")
+    ap.add_argument("--subject-id", default=None)
     ap.add_argument("--extractor-version", default="1")
+    ap.add_argument("--prompt-hash", default="")
+    ap.add_argument("--prompt-file", type=Path, default=None)
+    ap.add_argument("--extract", action="store_true")
+    ap.add_argument("--overlay", type=Path, default=None)
+    ap.add_argument("--no-shard", action="store_true")
+    ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+    prompt_hash = args.prompt_hash
+    if args.prompt_file:
+        prompt_hash = hashlib.sha256(args.prompt_file.read_bytes()).hexdigest()
+    overlay = json.loads(args.overlay.read_text(encoding="utf-8")) if args.overlay else None
+    extractor_version = args.extractor_version
+    if args.extract and extractor_version == "1":
+        extractor_version = "2"
     results = []
     files = [args.inbox] if args.inbox.is_file() else sorted(args.inbox.rglob("*"))
     for f in files:
         if f.is_file() and f.suffix.lower() in {".md", ".txt"}:
             results.append(
-                ingest_file(f, args.knowledge, args.vendor, slug(args.subject), args.extractor_version)
+                ingest_file(
+                    f,
+                    args.knowledge,
+                    args.vendor,
+                    slug(args.subject),
+                    extractor_version,
+                    prompt_hash,
+                    extract=args.extract,
+                    subject_id=args.subject_id,
+                    overlay=overlay,
+                    dry_run=args.dry_run,
+                    shard=not args.no_shard,
+                )
             )
-    print(json.dumps({"ingested": results}, indent=2))
+    print(json.dumps({"ingested": results}, indent=2, default=str))
 
 
 if __name__ == "__main__":

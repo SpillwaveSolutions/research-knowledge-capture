@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Implementing v2.2 — Phase 0–3 landed |
+| Status | Implementing v2.2 — Phase 0–3 + Phase 2 extractor landed |
 | Date | 22 August 2026 |
 | Repos | `research-knowledge-capture` (this repo), `research-graph` (Layer 1) |
 | Tracking | WikiTicket SDD (`.work/todo.jsonl`) |
@@ -18,7 +18,7 @@ This is a ContentPack, not a new product. Same rules as PKC, SAC, and DEKC: owne
 
 | Layer | Repo | Owns |
 |---|---|---|
-| L0 | **this plugin** | nouns, folders, registered rels, ingest, `/research-pack`, validate |
+| L0 | **this plugin** | nouns, folders, registered rels, ingest, extract, `/research-pack`, validate |
 | L1 | `research-graph` | Chroma + BM25 + Kuzu projector, `/research-ask`. Owns **no** types. Projector stays here until a second consumer needs it in core. |
 
 Retrieval ladder: `rg` → `/research-pack` → BM25/Chroma → Kuzu last.
@@ -58,17 +58,17 @@ Unknown type or rel is an **error**. Fail closed.
 - `as_of` on Claim/Finding (temporal validity)
 - Trust: `status` (draft|reviewed|accepted|rejected|superseded) is authoritative for replacement. BaseConcept `truth_state` is the lifecycle enum (`current|snapshot|superseded|archived|historical|proposed`) — do **not** overload it with epistemic values. `verified`, `generated`, `confidence` stay. Epistemic (`asserted|source_supported|corroborated|disputed`) is **derived** from edges.
 
-## 6. Ingest
+## 6. Ingest and extract
 
 Inbox `_inbox/research-dumps/` is not a type. Archive to `knowledge/research/source-assets/<sha256>/original.*`.
 
-- Idempotency key: source bytes + extractor version (prompt hash joins in Phase 2).
+- Idempotency key: `sha256(bytes|prompt_hash|extractor_version)`.
 - Fail-closed. Human PR gate. Required PR summary: new/merged claims, contradictions, skipped accepted nodes.
 - Nodes with `status` in reviewed|accepted or `verified: true` are never auto-superseded (ADR 004).
-- Segmentation for large dumps with global locators (Phase 2 extractor).
+- Segmentation with global locators (`rkc_segment.py`). Heuristic extract is deterministic. Overlay JSON is the agent/LLM path; quotes verified against the asset before any write (ADR 007).
 - Vendors: grok, gemini, claude, deepseek, chatgpt, article.
 
-v1 script writes SourceDocument + ResearchTask shells. The agent extracts Findings/Claims.
+`rkc_ingest.py` writes SourceDocument + ResearchTask shells. `rkc_extract.py` (or `--extract`) writes draft Claims/Evidence/Findings and the PR summary.
 
 ## 7. ContextPack
 
@@ -88,20 +88,22 @@ Verbatim quotes are verified against the archived asset span. No Chroma/Kuzu blo
 
 ## 9. Public samples
 
-Northstar / Lumenfield **fiction only**. Eval corpus in Phase 1 (this commit):
+Northstar / Lumenfield **fiction only**. Eval corpus:
 
 - Pack `subject.loop-policy.01J8X000000000000000000001` with hops=2 **must** include Claim + Evidence (spine).
 - Pack `question.loop-policy.01J8X000000000000000000004` must include Finding via inbound `answers`.
 - Unknown rel fails. Accepted Claim without `evidenced_by` fails. Verbatim mismatch fails.
 - `claim_key` is stable under whitespace/case/punctuation.
+- Corroborating dump with the same normalized claim attaches Evidence to the accepted Claim and does not change its status.
+- Overlay quote missing from the asset writes nothing.
 
 ## 10. Phases and tasks
 
 | Phase | Status | Tasks |
 |---|---|---|
-| 0 WikiTicket + ADRs | **done** | `.work/`, ADRs 001–006, actor isolation |
+| 0 WikiTicket + ADRs | **done** | `.work/`, ADRs 001–007, actor isolation |
 | 1 Schemas + samples + eval | **done** | 8 schemas, registry, fiction corpus, tests |
-| 2 Ingest | **partial** | archive + idempotency **done**; segmentation + PR summary + LLM extractor **todo** |
+| 2 Ingest + extractor | **done** | archive, idempotency, segmentation, claim_key merge, overlay, PR summary |
 | 3 `/research-pack` | **done** | spine, question inbound, rank, fail-closed budget |
 | 4 `research-graph` | **stub** | projector + `/research-ask`; Agent Brain; no LLM extraction |
 | 5 Article bridge | **todo** | content-media registry patch for `draws_from`; marketplace hardening |
@@ -113,6 +115,7 @@ Northstar / Lumenfield **fiction only**. Eval corpus in Phase 1 (this commit):
 - No Memgraph. Kuzu via Agent Brain in L1.
 - Projector not in Agent Brain core until a second consumer exists.
 - No auto-write of `draws_from`.
+- Agent Brain does not extract; RKC does. `GRAPH_USE_LLM_EXTRACTION=false`.
 
 ## 12. Host matrix
 

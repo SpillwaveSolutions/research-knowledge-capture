@@ -1,0 +1,10 @@
+{
+  "claims": [
+    {
+      "text": "The civic loop feed in Lumenfield carries 12,400 events per dusk window.",
+      "claim_kind": "numeric",
+      "quote": "The civic loop feed in Lumenfield carries 12,400 events per dusk window.",
+      "supersedes": "claim.loop-policy.01J8X000000000000000000006"
+    }
+  ]
+}

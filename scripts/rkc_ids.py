@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """RKC ID convention: <type-slug>.<subject-slug>.<ulid>"""
 from __future__ import annotations
-import re, time, os, secrets
+import re, time, os
 
 TYPE_SLUGS = {
     "ResearchArea": "area",
@@ -15,7 +15,9 @@ TYPE_SLUGS = {
 }
 
 CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-ID_RE = re.compile(r"^(area|subject|task|source|question|claim|evidence|finding)\.[a-z0-9-]{1,64}\.[0-9A-HJKMNP-TV-Z]{26}$")
+ID_RE = re.compile(
+    r"^(area|subject|task|source|question|claim|evidence|finding)\.[a-z0-9-]{1,64}\.[0-9A-HJKMNP-TV-Z]{26}$"
+)
 
 
 def _encode(n: int, length: int) -> str:
@@ -35,7 +37,14 @@ def ulid() -> str:
 def slug(s: str) -> str:
     s = (s or "unsorted").lower()
     s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
-    return (s[:64] or "unsorted")
+    return s[:64] or "unsorted"
+
+
+def subject_slug_from_id(value: str) -> str:
+    parts = (value or "").split(".")
+    if len(parts) >= 3:
+        return parts[1]
+    return slug(value)
 
 
 def make_id(type_name: str, subject_slug: str) -> str:
