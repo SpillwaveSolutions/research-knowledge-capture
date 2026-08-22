@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "Finding.schema.json",
+  "title": "Finding",
+  "type": "object",
+  "required": [
+    "type",
+    "title"
+  ],
+  "properties": {
+    "type": {
+      "const": "Finding"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "verified": {
+      "type": "boolean"
+    },
+    "generated": {
+      "type": "boolean"
+    },
+    "truth_state": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "number"
+    },
+    "as_of": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "author": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "links": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,21 @@
+{
+  "name": "research-knowledge-capture",
+  "version": "0.1.0",
+  "description": "Research Knowledge Capture for Cursor.",
+  "author": {
+    "name": "Rick Hightower"
+  },
+  "homepage": "https://github.com/SpillwaveSolutions/research-knowledge-capture",
+  "repository": "https://github.com/SpillwaveSolutions/research-knowledge-capture",
+  "license": "MIT",
+  "keywords": [
+    "rkc",
+    "okf",
+    "cursor",
+    "second-brain"
+  ],
+  "skills": "skills/",
+  "rules": ".cursor/rules/",
+  "commands": "commands/",
+  "hooks": "./hooks/cursor-hooks.json"
+}

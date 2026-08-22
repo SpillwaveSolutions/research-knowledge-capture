@@ -1,0 +1,9 @@
+{
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": "python3 scripts/rkc_validate.py --hook"
+      }
+    ]
+  }
+}

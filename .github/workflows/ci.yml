@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile scripts
+        run: python3 -m py_compile scripts/rkc_*.py
+      - name: Unit tests
+        run: |
+          python3 tests/test_plugin.py
+          python3 tests/test_rkc.py
+      - name: Validate sample-knowledge
+        run: python3 scripts/rkc_validate.py --root sample-knowledge
+      - name: Pack spine from Subject
+        run: |
+          python3 scripts/rkc_pack.py subject.loop-policy.01J8X000000000000000000001 \
+            --root sample-knowledge > /tmp/pack.json
+          python3 -c "import json; d=json.load(open('/tmp/pack.json')); ids={n['id'] for n in d['nodes']}; types={n['type'] for n in d['nodes']}; assert 'Claim' in types and 'Evidence' in types, d; assert 'claim.loop-policy.01J8X000000000000000000006' in ids"

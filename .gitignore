@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+.DS_Store
+knowledge/
+!sample-knowledge/
+_inbox/research-dumps/*
+!_inbox/research-dumps/.gitkeep
+!_inbox/research-dumps/README.md

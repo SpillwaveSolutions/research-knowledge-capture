@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "rkc-plugin-marketplace",
+  "owner": {
+    "name": "Rick Hightower",
+    "url": "https://github.com/RichardHightower"
+  },
+  "plugins": [
+    {
+      "name": "research-knowledge-capture",
+      "source": "./",
+      "description": "Research Knowledge Capture \u2014 OKF ContentPack for research dumps",
+      "version": "0.1.0"
+    }
+  ]
+}

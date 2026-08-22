@@ -1,0 +1,5 @@
+plugin: research-knowledge-capture
+tracker: wikiticket-sdd
+actor: grok-bot/research-knowledge-capture
+branch_policy: no-force-push
+main_protected: true

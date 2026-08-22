@@ -1,0 +1,85 @@
+{
+  "name": "rkc-okf-concept-schemas",
+  "version": "0.1.0",
+  "okf_version": "0.2",
+  "plugin": "research-knowledge-capture",
+  "base": "okf-plugin/schemas/okf-concepts/BaseConcept.schema.json",
+  "concepts": [
+    "ResearchArea",
+    "Subject",
+    "ResearchTask",
+    "SourceDocument",
+    "ResearchQuestion",
+    "Claim",
+    "Evidence",
+    "Finding"
+  ],
+  "rels": [
+    "has_subject",
+    "related_to",
+    "has_task",
+    "ingested_from",
+    "asks",
+    "answers",
+    "produced",
+    "asserts",
+    "evidenced_by",
+    "contradicts",
+    "supersedes",
+    "same_as"
+  ],
+  "catalog_ownership": {
+    "research-knowledge-capture": [
+      "areas",
+      "subjects",
+      "tasks",
+      "sources",
+      "questions",
+      "claims",
+      "evidence",
+      "findings"
+    ]
+  },
+  "types": [
+    {
+      "type": "ResearchArea",
+      "folder": "areas",
+      "description": "Top research domain"
+    },
+    {
+      "type": "Subject",
+      "folder": "subjects",
+      "description": "Topic under an area"
+    },
+    {
+      "type": "ResearchTask",
+      "folder": "tasks",
+      "description": "One deep-research run"
+    },
+    {
+      "type": "SourceDocument",
+      "folder": "sources",
+      "description": "Metadata for an ingested dump"
+    },
+    {
+      "type": "ResearchQuestion",
+      "folder": "questions",
+      "description": "What the run was answering"
+    },
+    {
+      "type": "Claim",
+      "folder": "claims",
+      "description": "Atomic assertion plus confidence"
+    },
+    {
+      "type": "Evidence",
+      "folder": "evidence",
+      "description": "Quote or span plus locator"
+    },
+    {
+      "type": "Finding",
+      "folder": "findings",
+      "description": "Synthesized conclusion"
+    }
+  ]
+}

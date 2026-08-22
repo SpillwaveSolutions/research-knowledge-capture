@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "rkc-plugin-marketplace",
+  "description": "Research Knowledge Capture — OKF ContentPack for research dumps, claims, evidence, and findings.",
+  "owner": {
+    "name": "Rick Hightower",
+    "url": "https://github.com/RichardHightower"
+  },
+  "plugins": [
+    {
+      "name": "research-knowledge-capture",
+      "source": "./",
+      "description": "Research Knowledge Capture (RKC): ingest deep-research dumps into an OKF ContentPack.",
+      "version": "0.1.0",
+      "author": {"name": "Rick Hightower"},
+      "homepage": "https://github.com/SpillwaveSolutions/research-knowledge-capture",
+      "repository": "https://github.com/SpillwaveSolutions/research-knowledge-capture",
+      "license": "MIT",
+      "keywords": ["rkc", "okf", "research", "second-brain", "claude-code", "grok-build"],
+      "category": "productivity"
+    }
+  ]
+}

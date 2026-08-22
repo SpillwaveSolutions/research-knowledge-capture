@@ -1,0 +1,7 @@
+{"id":"01KZWJ2RKC0000000000000001","title":"Phase 0 WikiTicket + ADRs","status":"done","phase":0,"kind":"docs"}
+{"id":"01KZWJ2RKC0000000000000002","title":"Phase 1 schemas, validator, fiction samples, eval fixtures","status":"done","phase":1,"kind":"schema"}
+{"id":"01KZWJ2RKC0000000000000003","title":"Phase 2 /research-ingest archive + idempotency","status":"done","phase":2,"kind":"ingest","note":"shell only; LLM extraction still agent-driven"}
+{"id":"01KZWJ2RKC0000000000000004","title":"Phase 3 /research-pack spine expansion","status":"done","phase":3,"kind":"pack"}
+{"id":"01KZWJ2RKC0000000000000005","title":"Phase 2 extractor: segmentation, PR summary, claim_key merge","status":"todo","phase":2,"kind":"extractor"}
+{"id":"01KZWJ2RKC0000000000000006","title":"Phase 4 research-graph projector + /research-ask","status":"todo","phase":4,"kind":"index"}
+{"id":"01KZWJ2RKC0000000000000007","title":"Phase 5 content-media draws_from Article bridge","status":"todo","phase":5,"kind":"bridge"}

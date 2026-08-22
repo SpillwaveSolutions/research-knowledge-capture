@@ -1,0 +1,6 @@
+---
+description: Research Knowledge Capture write rules
+globs: knowledge/research/**
+---
+
+RKC owns knowledge/research/**. Never invent types or rels. Registered rels are lowercase snake. Writes are fail-closed. Actor grok-bot/research-knowledge-capture. Do not write Article, Concept, or content-media catalogs. Quote text with verbatim true must match the archived source-asset span.

@@ -1,0 +1,18 @@
+{
+  "name": "rkc-plugin-marketplace",
+  "description": "Optional native Grok marketplace metadata. Grok Build already loads Claude plugins with zero config; this file pins identity for Grok marketplace listings.",
+  "version": "0.1.0",
+  "plugins": [
+    {
+      "name": "research-knowledge-capture",
+      "source": ".",
+      "description": "Research Knowledge Capture — OKF ContentPack for research dumps. Claude-compatible.",
+      "version": "0.1.0",
+      "compatibility": {
+        "claude_plugin": true,
+        "zero_config": true
+      },
+      "repository": "https://github.com/SpillwaveSolutions/research-knowledge-capture"
+    }
+  ]
+}

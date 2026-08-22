@@ -1,0 +1,15 @@
+{
+  "name": "research-knowledge-capture",
+  "version": "0.1.0",
+  "description": "Research Knowledge Capture for Codex. Same skills and hooks as Claude Code / Grok Build.",
+  "author": {
+    "name": "Rick Hightower",
+    "url": "https://github.com/RichardHightower"
+  },
+  "homepage": "https://github.com/SpillwaveSolutions/research-knowledge-capture",
+  "repository": "https://github.com/SpillwaveSolutions/research-knowledge-capture",
+  "license": "MIT",
+  "keywords": ["rkc", "okf", "codex", "agent-skills"],
+  "skills": "./skills/",
+  "hooks": "./hooks/codex-hooks.json"
+}

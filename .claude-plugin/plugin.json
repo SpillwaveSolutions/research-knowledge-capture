@@ -1,0 +1,19 @@
+{
+  "name": "research-knowledge-capture",
+  "version": "0.1.0",
+  "description": "Research Knowledge Capture (RKC) for Claude Code and Grok Build. OKF ContentPack for research dumps, claims, evidence, and findings.",
+  "author": {
+    "name": "Rick Hightower",
+    "url": "https://github.com/RichardHightower"
+  },
+  "homepage": "https://github.com/SpillwaveSolutions/research-knowledge-capture",
+  "repository": "https://github.com/SpillwaveSolutions/research-knowledge-capture",
+  "license": "MIT",
+  "keywords": [
+    "rkc",
+    "okf",
+    "research",
+    "claude-code",
+    "grok-build"
+  ]
+}
