@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -21,7 +22,7 @@ from rkc_common import (  # noqa: E402
 )
 from rkc_extract import candidates_from_text, is_claim_sentence, run_extract  # noqa: E402
 from rkc_ids import slug, valid_id  # noqa: E402
-from rkc_ingest import IngestSession, ingest_file, source_title  # noqa: E402
+from rkc_ingest import IngestSession, ingest_file, source_payload, source_title  # noqa: E402
 from rkc_pack import pack  # noqa: E402
 from rkc_validate import spine_issues, validate  # noqa: E402
 
@@ -387,6 +388,149 @@ class ExtractorVersionTests(unittest.TestCase):
             c = ingest_file(inbox, k, "grok", "loop-policy", extractor_version="1", allow_reextract=True)
             self.assertFalse(c.get("idempotent"))
             self.assertEqual(len(list((k / "research" / "sources").glob("*.md"))), 2)
+        finally:
+            shutil.rmtree(tmp)
+
+
+class DryRunIndexTests(unittest.TestCase):
+    def test_dry_run_leaves_fresh_tree_empty(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            inbox = tmp / "in"
+            k = tmp / "k"
+            inbox.mkdir()
+            k.mkdir()
+            (inbox / "a.md").write_text("# Doc\n\nThe handler retries three times.\n", encoding="utf-8")
+            r = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "rkc_ingest.py"),
+                    str(inbox),
+                    "--knowledge",
+                    str(k),
+                    "--subject",
+                    "t",
+                    "--area",
+                    "a",
+                    "--extract",
+                    "--dry-run",
+                ],
+                cwd=REPO,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            leftover = [p for p in k.rglob("*") if p != k]
+            self.assertEqual(leftover, [], leftover)
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_dry_run_preserves_existing_index(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            k = tmp / "knowledge"
+            inbox = tmp / "d.md"
+            inbox.write_text("# Doc\n\nThe handler retries three times.\n", encoding="utf-8")
+            rec = ingest_file(inbox, k, "grok", "t")
+            idx = k / "research" / "catalogs" / "ingest-index.json"
+            before = idx.read_text(encoding="utf-8")
+            keys = json.loads(before)["keys"]
+            self.assertEqual(len(keys), 1)
+            other = tmp / "other.md"
+            other.write_text("# Other\n\nA second handler retries five times.\n", encoding="utf-8")
+            ingest_file(other, k, "grok", "t", dry_run=True)
+            self.assertEqual(idx.read_text(encoding="utf-8"), before)
+            self.assertEqual(len(list((k / "research" / "sources").glob("*.md"))), 1)
+            again = ingest_file(inbox, k, "grok", "t")
+            self.assertTrue(again["idempotent"])
+            self.assertEqual(again["source_id"], rec["source_id"])
+        finally:
+            shutil.rmtree(tmp)
+
+
+class EmptySourceTests(unittest.TestCase):
+    def test_payload_strips_frontmatter_and_whitespace(self):
+        self.assertEqual(source_payload(""), "")
+        self.assertEqual(source_payload("   \n\n  \n"), "")
+        self.assertEqual(source_payload("---\ntitle: only frontmatter\n---\n"), "")
+        self.assertEqual(source_payload("# Real\n\nbody\n"), "# Real\n\nbody")
+        self.assertEqual(source_payload("---\ntitle: x\n---\n\nSee chapter 2.\n"), "See chapter 2.")
+
+    def test_empty_whitespace_and_frontmatter_only_are_skipped(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            k = tmp / "knowledge"
+            inbox = tmp / "in"
+            inbox.mkdir()
+            (inbox / "empty.md").write_bytes(b"")
+            (inbox / "blank.md").write_text("   \n\n  \n", encoding="utf-8")
+            (inbox / "fmonly.md").write_text("---\ntitle: only frontmatter\n---\n", encoding="utf-8")
+            (inbox / "ok.md").write_text(
+                "# Real doc\n\nThe system retries the request three times.\n", encoding="utf-8"
+            )
+            (inbox / "pointer.md").write_text("See chapter 2 for the dump.\n", encoding="utf-8")
+            r = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "rkc_ingest.py"),
+                    str(inbox),
+                    "--knowledge",
+                    str(k),
+                    "--subject",
+                    "t",
+                    "--area",
+                    "a",
+                    "--extract",
+                ],
+                cwd=REPO,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            payload = json.loads(r.stdout)
+            self.assertEqual(len(payload["ingested"]), 2, payload)
+            self.assertEqual({row["skipped"] for row in payload["skipped"]}, {"empty"})
+            self.assertEqual(len(payload["skipped"]), 3)
+            sources = list((k / "research" / "sources").glob("*.md"))
+            tasks = list((k / "research" / "tasks").glob("*.md"))
+            self.assertEqual(len(sources), 2)
+            self.assertEqual(len(tasks), 2)
+            titles = {parse_okf(p)[0]["title"] for p in sources}
+            self.assertEqual(titles, {"ok.md", "pointer.md"})
+            empty_sha = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            self.assertFalse((k / "research" / "source-assets" / empty_sha).exists())
+            self.assertIn("SKIP empty", r.stderr)
+            err_file = k / "research" / "catalogs" / "ingest-errors.jsonl"
+            self.assertTrue(err_file.exists())
+            lines = err_file.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 3)
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_already_ingested_empty_stays_idempotent(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            k = tmp / "knowledge"
+            empty = tmp / "empty.md"
+            empty.write_bytes(b"")
+            rec = ingest_file(empty, k, "grok", "t")
+            # Force a write as if 0.2.5 archived it, then a later run with the skip should not duplicate.
+            self.assertEqual(rec.get("skipped"), "empty")
+            sess = IngestSession(k)
+            fake = {
+                "source_id": "source.t.01J8X000000000000000000001",
+                "task_id": "task.t.01J8X000000000000000000002",
+                "sha256": rec["sha256"],
+                "asset_path": "research/source-assets/x/original.md",
+                "ingest_key": rec["ingest_key"],
+                "prompt_hash": "",
+                "ingest_version": "2",
+            }
+            sess.record(rec["ingest_key"], fake)
+            sess.flush()
+            again = ingest_file(empty, k, "grok", "t")
+            self.assertTrue(again.get("idempotent"))
+            self.assertIsNone(again.get("skipped"))
         finally:
             shutil.rmtree(tmp)
 

@@ -9,3 +9,4 @@
 {"id":"01KZWJ2RKC000000000000000A","title":"Quote date scalars, name parse errors, ingest identity, index.md titles","status":"done","phase":2,"kind":"ingest","refs":["github#6","github#16","github#17","github#18","github#19","github#20"]}
 {"id":"01KZWJ2RKC000000000000000B","title":"Extractor merge must keep claim path in the session index","status":"done","phase":2,"kind":"extractor"}
 {"id":"01KZWJ2RKC000000000000000C","title":"Subject title from slug not first source filename","status":"done","phase":2,"kind":"ingest","refs":["github#23"]}
+{"id":"01KZWJ2RKC000000000000000D","title":"Dry-run writes no index; skip empty sources","status":"done","phase":2,"kind":"ingest","refs":["github#25","github#26"]}
