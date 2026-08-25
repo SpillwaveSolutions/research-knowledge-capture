@@ -19,20 +19,28 @@ Actor: `grok-bot/research-knowledge-capture`. Isolated session. Ready PR. No for
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/rkc_ingest.py _inbox/research-dumps \
-  --knowledge knowledge --vendor grok --subject <slug>
+  --knowledge knowledge --vendor grok --subject <slug> --area <area-slug>
 ```
 
 Then extract:
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/rkc_ingest.py _inbox/research-dumps \
-  --knowledge knowledge --vendor grok --subject <slug> --extract --subject-id <id>
+  --knowledge knowledge --vendor grok --subject <slug> --area <area-slug> --extract --subject-id <id>
 ```
 
 or `/research-extract` against the archived asset.
 
-Vendors: `grok` | `gemini` | `claude` | `deepseek` | `chatgpt` | `article`.
+`vendor` is free text. Conventional values: `grok` | `gemini` | `claude` | `deepseek` | `chatgpt` | `article` | `perplexity` | `unknown`.
+
+`--source-kind` defaults to `deep_research`. Use `reference_doc`, `published_medium`, `published_substack` when that is what you have.
 
 `--extract` bumps extractor version to 2 unless set. Prompt hash: `--prompt-hash` or `--prompt-file`.
+
+Files over 200 KB skip heuristic extract unless `--force-large`. Progress goes to stderr. Failed files append to `research/catalogs/ingest-errors.jsonl`; the run continues.
+
+Idempotency lookup is `research/catalogs/ingest-index.json`. `--rebuild-index` rebuilds it from sources + tasks.
+
+Do not parallelize writers inside one knowledge tree. Shard by Subject (one tree or one process per slug). If you stop a run, kill workers by PID — `pkill -f` misses multiprocessing children.
 
 Public samples are Northstar / Lumenfield fiction only.

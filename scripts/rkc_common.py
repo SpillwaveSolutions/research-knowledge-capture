@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 try:
@@ -62,6 +63,7 @@ KEY_ORDER = [
     "source_hash",
     "asset_path",
     "original_filename",
+    "origin_path",
     "captured_at",
     "ingest_version",
     "ingest_key",
@@ -80,6 +82,7 @@ KEY_ORDER = [
     "tags",
     "links",
 ]
+_YAML_FALLBACK_WARNED = False
 
 
 def plugin_root() -> Path:
@@ -88,6 +91,23 @@ def plugin_root() -> Path:
 
 def load_registry() -> dict:
     return json.loads((plugin_root() / "schemas/okf-concepts/registry.json").read_text())
+
+
+def _unescape_double(s: str) -> str:
+    """Unescape JSON/YAML double-quoted scalar sequences used by dump_frontmatter."""
+    out: list[str] = []
+    i = 0
+    while i < len(s):
+        if s[i] == "\\" and i + 1 < len(s):
+            nxt = s[i + 1]
+            mapping = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "\\": "\\"}
+            if nxt in mapping:
+                out.append(mapping[nxt])
+                i += 2
+                continue
+        out.append(s[i])
+        i += 1
+    return "".join(out)
 
 
 def _scalar(v: str):
@@ -99,7 +119,10 @@ def _scalar(v: str):
     if v in {"null", "None", "~", ""}:
         return None
     if len(v) >= 2 and v[0] == v[-1] and v[0] in {"'", '"'}:
-        return v[1:-1]
+        inner = v[1:-1]
+        if v[0] == '"':
+            inner = _unescape_double(inner)
+        return inner
     if re.fullmatch(r"-?\d+", v):
         return int(v)
     if re.fullmatch(r"-?\d+\.\d+", v):
@@ -177,7 +200,15 @@ def _mini_yaml(raw: str) -> dict:
     return root
 
 
+class ParseError(Exception):
+    def __init__(self, path: Path, cause: BaseException):
+        self.path = path
+        self.cause = cause
+        super().__init__(f"{path}: unparsable: {cause}")
+
+
 def parse_okf(path: Path) -> tuple[dict, str]:
+    global _YAML_FALLBACK_WARNED
     text = path.read_text(encoding="utf-8")
     m = FM_RE.match(text)
     if not m:
@@ -186,13 +217,20 @@ def parse_okf(path: Path) -> tuple[dict, str]:
     if yaml:
         data = yaml.safe_load(raw) or {}
     else:
+        if not _YAML_FALLBACK_WARNED:
+            print(
+                "rkc: PyYAML is not installed; using _mini_yaml fallback. "
+                "Install with: pip install pyyaml",
+                file=sys.stderr,
+            )
+            _YAML_FALLBACK_WARNED = True
         data = _mini_yaml(raw)
     if not isinstance(data, dict):
         data = {}
     return data, body
 
 
-def iter_okf(knowledge_root: Path):
+def iter_okf(knowledge_root: Path, *, collect_errors: list | None = None):
     research = knowledge_root / "research"
     if not research.exists():
         return
@@ -201,8 +239,34 @@ def iter_okf(knowledge_root: Path):
             continue
         if any(part in SKIP_DIR_NAMES for part in p.parts):
             continue
-        fm, body = parse_okf(p)
+        try:
+            fm, body = parse_okf(p)
+        except Exception as e:
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
+            msg = f"{p}: unparsable: {e}"
+            if collect_errors is not None:
+                collect_errors.append(msg)
+                continue
+            raise ParseError(p, e) from e
         yield p, fm, body
+
+
+def iter_type(knowledge: Path, type_name: str):
+    """Walk one concept folder. Does not scan claims/evidence when asking for sources."""
+    folder = FOLDER_FOR[type_name]
+    base = knowledge / "research" / folder
+    if not base.exists():
+        return
+    for p in sorted(base.rglob("*.md")):
+        if p.name.lower() in {"index.md", "readme.md"}:
+            continue
+        try:
+            fm, body = parse_okf(p)
+        except Exception:
+            continue
+        if fm.get("type") == type_name:
+            yield p, fm, body
 
 
 def knowledge_root(start: Path | None = None) -> Path:
@@ -254,6 +318,8 @@ def _needs_quote(s: str) -> bool:
     if s.startswith("-") or s.startswith(":"):
         return True
     if ": " in s:
+        return True
+    if s.rstrip().endswith(":"):
         return True
     return False
 
@@ -333,3 +399,78 @@ def concept_dir(knowledge: Path, type_name: str, subject_slug: str | None = None
     if shard and type_name in {"Claim", "Evidence"} and subject_slug:
         return base / subject_slug
     return base
+
+
+def _title_from_slug(value: str) -> str:
+    return (value or "unsorted").replace("-", " ").strip().title() or "Unsorted"
+
+
+def ensure_subject(knowledge: Path, subject_slug: str, title: str | None = None, *, dry_run: bool = False) -> tuple[str, Path | None, bool]:
+    """Return (id, path, created). Path is None on dry-run create."""
+    from rkc_ids import make_id, slug as make_slug
+
+    subject_slug = make_slug(subject_slug)
+    prefix = f"subject.{subject_slug}."
+    for path, fm, _body in iter_type(knowledge, "Subject"):
+        if (fm.get("id") or "").startswith(prefix):
+            return fm["id"], path, False
+    sid = make_id("Subject", subject_slug)
+    path = concept_dir(knowledge, "Subject") / f"{sid}.md"
+    if dry_run:
+        return sid, None, True
+    write_okf(
+        path,
+        {
+            "type": "Subject",
+            "id": sid,
+            "title": title or _title_from_slug(subject_slug),
+            "status": "draft",
+            "verified": False,
+            "generated": True,
+            "truth_state": "proposed",
+            "author": ACTOR,
+            "timestamp": _now_iso(),
+            "tags": ["extracted"],
+            "links": [],
+        },
+        f"# {title or _title_from_slug(subject_slug)}\n",
+    )
+    return sid, path, True
+
+
+def ensure_area(knowledge: Path, area_slug: str, title: str | None = None, *, dry_run: bool = False) -> tuple[str, Path | None, bool]:
+    from rkc_ids import make_id, slug as make_slug
+
+    area_slug = make_slug(area_slug)
+    prefix = f"area.{area_slug}."
+    for path, fm, _body in iter_type(knowledge, "ResearchArea"):
+        if (fm.get("id") or "").startswith(prefix):
+            return fm["id"], path, False
+    aid = make_id("ResearchArea", area_slug)
+    path = concept_dir(knowledge, "ResearchArea") / f"{aid}.md"
+    if dry_run:
+        return aid, None, True
+    write_okf(
+        path,
+        {
+            "type": "ResearchArea",
+            "id": aid,
+            "title": title or _title_from_slug(area_slug),
+            "status": "draft",
+            "verified": False,
+            "generated": True,
+            "truth_state": "proposed",
+            "author": ACTOR,
+            "timestamp": _now_iso(),
+            "tags": ["extracted"],
+            "links": [],
+        },
+        f"# {title or _title_from_slug(area_slug)}\n",
+    )
+    return aid, path, True
+
+
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

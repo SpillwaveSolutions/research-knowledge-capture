@@ -72,6 +72,10 @@
     "original_filename": {
       "type": "string"
     },
+    "origin_path": {
+      "type": "string",
+      "description": "Absolute path of the file as ingested. Distinguishes repeated basenames such as index.md."
+    },
     "ingest_version": {
       "type": "string"
     }

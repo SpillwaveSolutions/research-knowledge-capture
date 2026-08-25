@@ -1,13 +1,14 @@
 [project]
 name = "research-knowledge-capture"
-version = "0.2.0"
+version = "0.2.1"
 description = "RKC Layer 0 ContentPack — research dumps into OKF."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
+dependencies = ["pyyaml>=6"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pyyaml>=6"]
+dev = ["pytest>=8"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

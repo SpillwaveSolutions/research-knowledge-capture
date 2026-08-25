@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install
+        run: pip install pyyaml
       - name: Compile scripts
         run: python3 -m py_compile scripts/rkc_*.py
       - name: Unit tests
@@ -20,8 +22,9 @@ jobs:
           python3 tests/test_plugin.py
           python3 tests/test_rkc.py
           python3 tests/test_extract.py
+          python3 tests/test_bulk_fixes.py
       - name: Validate sample-knowledge
-        run: python3 scripts/rkc_validate.py --root sample-knowledge
+        run: python3 scripts/rkc_validate.py --root sample-knowledge --spine
       - name: Pack spine from Subject
         run: |
           python3 scripts/rkc_pack.py subject.loop-policy.01J8X000000000000000000001 \

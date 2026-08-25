@@ -19,12 +19,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from rkc_claim_key import claim_key, jaccard, normalize, polarity
+from rkc_claim_key import claim_key, jaccard, normalize, polarity, tokens
 from rkc_common import (
     ACTOR,
     OWNED_RELS,
     add_link,
     concept_dir,
+    ensure_subject as ensure_subject_node,
     is_protected,
     iter_okf,
     knowledge_root,
@@ -37,12 +38,25 @@ from rkc_segment import locate_quote, segment_markdown
 EXTRACTOR_VERSION = "2"
 KINDS = {"factual", "numeric", "definitional", "predictive", "causal"}
 SKIP_PREFIX = re.compile(
-    r"^(method|vendor|source|note|see also|references?|disclaimer)\s*:",
+    r"^(method|vendor|source|note|see also|references?|disclaimer|"
+    r"table of contents|contents|appendix|bibliography|footnotes?|"
+    r"license|copyright|changelog)\s*:",
+    re.I,
+)
+HEADING_OR_SECTION = re.compile(r"^(?:#{1,6}\s+|\d+(?:\.\d+)+\s+\S)")
+EXPORT_ARTIFACT = re.compile(r"\b(?:filecite|citeturn)\w*\b", re.I)
+HAS_VERB = re.compile(
+    r"\b(is|are|was|were|be|been|being|has|have|had|do|does|did|"
+    r"can|could|will|would|may|might|shall|should|"
+    r"recorded|holds|showed|caused|refers|means|tracks)\b",
     re.I,
 )
 SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z\"'])")
 SAME_AS_THRESHOLD = 0.78
 CONTRA_THRESHOLD = 0.5
+MAX_SOURCE_BYTES = 200 * 1024
+MAX_CANDIDATES = 400
+MAX_JACCARD = 64
 
 
 def now_iso() -> str:
@@ -82,6 +96,11 @@ def split_sentences(text: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
+def strip_artifacts(text: str) -> str:
+    text = EXPORT_ARTIFACT.sub("", text or "")
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def is_claim_sentence(text: str) -> bool:
     if len(text) < 40 or len(text) > 400:
         return False
@@ -89,7 +108,11 @@ def is_claim_sentence(text: str) -> bool:
         return False
     if text.lstrip().startswith("#"):
         return False
+    if HEADING_OR_SECTION.match(text):
+        return False
     if SKIP_PREFIX.match(text):
+        return False
+    if not HAS_VERB.search(text):
         return False
     return classify_kind(text) is not None
 
@@ -104,11 +127,24 @@ def title_from(text: str, n: int = 72) -> str:
     return cut.rstrip(".,;:") + "…"
 
 
+def _index_claim(idx: dict, rec: dict) -> None:
+    text = rec["fm"].get("description") or rec.get("body") or ""
+    for tok in tokens(text):
+        idx.setdefault("token_index", {}).setdefault(tok, []).append(rec)
+
+
 def index_nodes(knowledge: Path) -> dict:
     by_type: dict[str, list[dict]] = {}
     by_id: dict[str, dict] = {}
     claims_by_key: dict[str, list[dict]] = {}
     evidence_index: list[dict] = []
+    idx: dict = {
+        "by_type": by_type,
+        "by_id": by_id,
+        "claims_by_key": claims_by_key,
+        "evidence": evidence_index,
+        "token_index": {},
+    }
     for path, fm, body in iter_okf(knowledge):
         rec = {"path": path, "fm": fm, "body": body}
         t = fm.get("type")
@@ -117,24 +153,12 @@ def index_nodes(knowledge: Path) -> dict:
             by_id[fm["id"]] = rec
         if t == "Claim":
             ck = fm.get("claim_key")
-            if not ck:
-                subj = None
-                # recover from id
-                cid = fm.get("id") or ""
-                kind = fm.get("claim_kind") or "factual"
-                text = fm.get("description") or body
-                # subject_id must be passed later; store raw
-                ck = ck or ""
             if ck:
                 claims_by_key.setdefault(ck, []).append(rec)
+            _index_claim(idx, rec)
         if t == "Evidence":
             evidence_index.append(rec)
-    return {
-        "by_type": by_type,
-        "by_id": by_id,
-        "claims_by_key": claims_by_key,
-        "evidence": evidence_index,
-    }
+    return idx
 
 
 def find_subject(knowledge: Path, subject_slug: str, idx: dict | None = None) -> dict | None:
@@ -150,26 +174,15 @@ def ensure_subject(knowledge: Path, subject_slug: str, title: str | None, dry_ru
     rec = find_subject(knowledge, subject_slug, idx)
     if rec:
         return rec["fm"]["id"], False
-    sid = make_id("Subject", subject_slug)
-    if not dry_run:
-        path = concept_dir(knowledge, "Subject") / f"{sid}.md"
-        write_okf(
-            path,
-            {
-                "type": "Subject",
-                "id": sid,
-                "title": title or subject_slug.replace("-", " ").title(),
-                "status": "draft",
-                "verified": False,
-                "generated": True,
-                "truth_state": "proposed",
-                "author": ACTOR,
-                "timestamp": now_iso(),
-                "tags": ["extracted"],
-            },
-            f"# {title or sid}\n",
-        )
-    return sid, True
+    sid, path, created = ensure_subject_node(knowledge, subject_slug, title, dry_run=dry_run)
+    if created and path is not None and not dry_run:
+        from rkc_common import parse_okf
+
+        fm, body = parse_okf(path)
+        rec = {"path": path, "fm": fm, "body": body}
+        idx.setdefault("by_type", {}).setdefault("Subject", []).append(rec)
+        idx.setdefault("by_id", {})[sid] = rec
+    return sid, created
 
 
 def remember_evidence(idx: dict, evid_id: str, loc: dict, source_hash: str, text: str) -> None:
@@ -296,17 +309,21 @@ def write_claim(
     return cid
 
 
-def candidates_from_text(asset_text: str) -> list[dict]:
+def candidates_from_text(asset_text: str, max_candidates: int = MAX_CANDIDATES) -> list[dict]:
     out = []
     seen = set()
+    truncated = False
     for seg in segment_markdown(asset_text):
         body_lines = []
         for line in seg["text"].splitlines():
             if re.match(r"^#{1,6}\s+", line):
                 continue
+            if HEADING_OR_SECTION.match(line.strip()):
+                continue
             body_lines.append(line)
-        blob = " ".join(body_lines)
+        blob = strip_artifacts(" ".join(body_lines))
         for sent in split_sentences(blob):
+            sent = strip_artifacts(sent)
             if not is_claim_sentence(sent):
                 continue
             kind = classify_kind(sent)
@@ -319,15 +336,23 @@ def candidates_from_text(asset_text: str) -> list[dict]:
             if not loc:
                 continue
             seen.add(key)
+            confidence = 0.55
+            if not HAS_VERB.search(sent):
+                confidence = 0.35
             out.append(
                 {
                     "text": sent,
                     "claim_kind": kind,
                     "quote": loc["text"],
                     "span": loc,
-                    "confidence": 0.55,
+                    "confidence": confidence,
                 }
             )
+            if len(out) >= max_candidates:
+                truncated = True
+                break
+        if truncated:
+            break
     return out
 
 
@@ -382,13 +407,29 @@ def match_existing(cand: dict, subject_id: str, idx: dict) -> tuple[str, dict | 
     hits = idx["claims_by_key"].get(ck) or []
     if hits:
         return "merge", hits[0]
+    cand_tokens = tokens(cand["text"])
+    token_index = idx.get("token_index") or {}
+    scored: list[tuple[int, dict]] = []
+    seen_ids: set[str] = set()
+    for tok in cand_tokens:
+        for rec in token_index.get(tok, []):
+            fm = rec["fm"]
+            rid = fm.get("id")
+            if not rid or rid in seen_ids:
+                continue
+            if (fm.get("claim_kind") or cand["claim_kind"]) != cand["claim_kind"]:
+                continue
+            seen_ids.add(rid)
+            other = fm.get("description") or rec.get("body") or ""
+            overlap = len(cand_tokens & tokens(other))
+            if overlap:
+                scored.append((overlap, rec))
+    scored.sort(key=lambda row: -row[0])
     best = None
     best_score = 0.0
-    for rec in idx["by_type"].get("Claim", []):
+    for _overlap, rec in scored[:MAX_JACCARD]:
         fm = rec["fm"]
-        if (fm.get("claim_kind") or cand["claim_kind"]) != cand["claim_kind"]:
-            continue
-        other = fm.get("description") or rec["body"]
+        other = fm.get("description") or rec.get("body") or ""
         score = jaccard(cand["text"], other)
         if score > best_score:
             best_score = score
@@ -424,9 +465,17 @@ def run_extract(
     shard: bool = True,
     dry_run: bool = False,
     as_of: str | None = None,
+    idx: dict | None = None,
+    session=None,
+    max_source_bytes: int = MAX_SOURCE_BYTES,
+    max_candidates: int = MAX_CANDIDATES,
+    force_large: bool = False,
 ) -> dict:
     knowledge = Path(knowledge)
-    idx = index_nodes(knowledge)
+    if idx is None:
+        idx = index_nodes(knowledge)
+    if session is not None:
+        session.extract_idx = idx
     errors: list[str] = []
     asset_file = Path(asset_path)
     if not asset_file.is_absolute():
@@ -443,8 +492,10 @@ def run_extract(
         rel_asset = str(asset_file.relative_to(knowledge))
     if asset_file.exists():
         source_hash = f"sha256:{hashlib.sha256(asset_file.read_bytes()).hexdigest()}"
+        nbytes = asset_file.stat().st_size
     else:
         source_hash = f"sha256:{sha256_text(asset_text)}"
+        nbytes = len(asset_text.encode("utf-8"))
 
     subject_slug = slug(subject_slug or (subject_slug_from_id(subject_id) if subject_id else "unsorted"))
     created_subject = False
@@ -456,20 +507,8 @@ def run_extract(
             subject_id, created_subject = ensure_subject(
                 knowledge, subject_slug, (overlay or {}).get("subject_title"), dry_run, idx
             )
-            if created_subject and not dry_run:
-                idx = index_nodes(knowledge)
 
-    segs = segment_markdown(asset_text)
-    if overlay:
-        cands, oerr = candidates_from_overlay(overlay, asset_text)
-        errors.extend(oerr)
-    else:
-        cands = candidates_from_text(asset_text)
-
-    if errors:
-        return {"ok": False, "errors": errors, "segments": len(segs)}
-
-    summary = {
+    empty = {
         "ok": True,
         "errors": [],
         "extractor_version": extractor_version,
@@ -478,7 +517,7 @@ def run_extract(
         "subject_id": subject_id,
         "asset_path": rel_asset,
         "source_hash": source_hash,
-        "segments": len(segs),
+        "segments": 0,
         "new_claims": [],
         "merged_claims": [],
         "same_as": [],
@@ -490,6 +529,43 @@ def run_extract(
         "created_subject": subject_id if created_subject else None,
         "pr_summary_path": None,
         "dry_run": dry_run,
+        "bytes": nbytes,
+    }
+
+    if overlay is None and nbytes > max_source_bytes and not force_large:
+        print(
+            f"[rkc-extract] skip {rel_asset}: {nbytes} bytes > {max_source_bytes} "
+            "(archive-only; pass --force-large to extract)",
+            file=sys.stderr,
+        )
+        empty["skipped"] = "source_too_large"
+        empty["ok"] = True
+        return empty
+
+    segs = segment_markdown(asset_text)
+    if overlay:
+        cands, oerr = candidates_from_overlay(overlay, asset_text)
+        errors.extend(oerr)
+    else:
+        cands = candidates_from_text(asset_text, max_candidates=max_candidates)
+        if len(cands) >= max_candidates:
+            print(
+                f"[rkc-extract] capped {rel_asset} at {max_candidates} candidates",
+                file=sys.stderr,
+            )
+
+    print(
+        f"[rkc-extract] {rel_asset} bytes={nbytes} segs={len(segs)} cands={len(cands)}",
+        file=sys.stderr,
+    )
+
+    if errors:
+        return {"ok": False, "errors": errors, "segments": len(segs)}
+
+    summary = {
+        **empty,
+        "segments": len(segs),
+        "capped_candidates": overlay is None and len(cands) >= max_candidates,
     }
 
     finding_assert_targets: list[str] = []
@@ -559,19 +635,21 @@ def run_extract(
         finding_assert_targets.append(cid)
         if not dry_run:
             remember_evidence(idx, evid_id, loc_with_asset, source_hash, cand["span"]["text"])
+            rec = {
+                "fm": {
+                    "id": cid,
+                    "claim_kind": cand["claim_kind"],
+                    "description": cand["text"],
+                },
+                "path": None,
+                "body": cand["text"],
+            }
             idx["claims_by_key"].setdefault(
                 claim_key(cand["text"], cand["claim_kind"], subject_id), []
-            ).append(
-                {
-                    "fm": {
-                        "id": cid,
-                        "claim_kind": cand["claim_kind"],
-                        "description": cand["text"],
-                    },
-                    "path": None,
-                    "body": cand["text"],
-                }
-            )
+            ).append(rec)
+            idx.setdefault("by_type", {}).setdefault("Claim", []).append(rec)
+            idx.setdefault("by_id", {})[cid] = rec
+            _index_claim(idx, rec)
 
     # Finding
     overlay_finding = (overlay or {}).get("finding") if overlay else None
@@ -713,6 +791,9 @@ def main() -> int:
     ap.add_argument("--shard", action="store_true", default=True)
     ap.add_argument("--no-shard", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--max-source-bytes", type=int, default=MAX_SOURCE_BYTES)
+    ap.add_argument("--max-candidates", type=int, default=MAX_CANDIDATES)
+    ap.add_argument("--force-large", action="store_true")
     args = ap.parse_args()
     kr = knowledge_root(args.knowledge) if args.knowledge else knowledge_root()
     if args.knowledge and (args.knowledge / "research").exists():
@@ -736,6 +817,9 @@ def main() -> int:
         shard=False if args.no_shard else True,
         dry_run=args.dry_run,
         as_of=args.as_of,
+        max_source_bytes=args.max_source_bytes,
+        max_candidates=args.max_candidates,
+        force_large=args.force_large,
     )
     print(json.dumps(summary, indent=2, default=str))
     return 0 if summary.get("ok") else 1

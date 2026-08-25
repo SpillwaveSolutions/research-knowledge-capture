@@ -1,6 +1,32 @@
 # Changelog
 
+## 0.2.1 — 2026-08-24
+
+Bulk-ingest hardening from the first 2,997-file corpus ([#13](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/13)).
+
+Blockers:
+
+- Ingest lookup is O(1) via `research/catalogs/ingest-index.json`. Rebuild with `--rebuild-index` (sources + tasks only). [#1](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/1)
+- Heuristic extract skips sources over 200 KB (`--force-large` to override), caps candidates, and matches near-duplicates through a token index instead of all-pairs Jaccard. [#2](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/2)
+- Long subject slugs keep a prefix plus an 8-hex digest of the full value so distinct names no longer collapse. [#3](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/3)
+
+Major:
+
+- `pyyaml` is a required dependency. `_mini_yaml` unescapes `\\n` / `\\t` / `\\"` / `\\\\` and warns when the fallback runs. [#4](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/4)
+- `_needs_quote` treats a trailing colon as quoted. Ingest writes through `write_okf`. [#5](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/5)
+- `rkc_validate.py` reports the unparsable path and continues. [#6](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/6)
+- SourceDocuments store `origin_path`. `index.md` / `README.md` titles use the parent directory. `--source-kind` is accepted. [#7](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/7)
+- Archive-only ingest creates the Subject node. [#8](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/8)
+- Ingest writes `has_task`. `--area` creates a ResearchArea and writes `has_subject`. `--spine` fails validation on a missing ladder. [#9](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/9)
+
+Minor:
+
+- Heuristic extractor drops Markdown/numbered headings and `filecite` / `citeturn` export artifacts. [#10](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/10)
+- Per-file progress on stderr, ingest-key resume, `--errors-file` (does not abort the run). Intra-tree `--workers` is not added: concurrent writers race, and `pkill -f` orphans multiprocessing children. Shard by Subject instead. [#11](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/11)
+- Vendor is free text. Convention now includes `perplexity` and `unknown`. [#12](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/12)
+
 ## 0.2.0 — 2026-08-22
+
 
 Phase 2 extractor.
 
