@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "research-knowledge-capture",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Research Knowledge Capture (RKC): ingest deep-research dumps and articles into an OKF ContentPack of areas, subjects, claims, evidence, and findings. Layer 0 of the research second brain.",
   "author": {
     "name": "Rick Hightower",

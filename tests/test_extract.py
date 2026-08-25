@@ -280,6 +280,28 @@ class IngestExtractTests(unittest.TestCase):
         self.assertNotEqual(a["source_id"], b["source_id"])
         shutil.rmtree(tmp)
 
+    def test_second_file_merges_into_first_without_crash(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            k = tmp / "knowledge"
+            inbox = tmp / "inbox"
+            inbox.mkdir()
+            sent = "Loop policy is defined as the civic threshold that gates dusk-window alerts."
+            (inbox / "a.md").write_text(sent + "\n", encoding="utf-8")
+            (inbox / "b.md").write_text("Preface sentence that is not a claim.\n\n" + sent + "\n", encoding="utf-8")
+            from rkc_ingest import IngestSession
+
+            sess = IngestSession(k)
+            first = ingest_file(inbox / "a.md", k, "grok", "loop-policy", extract=True, session=sess)
+            self.assertTrue(first["extract"]["ok"], first["extract"])
+            self.assertTrue(first["extract"]["new_claims"])
+            second = ingest_file(inbox / "b.md", k, "grok", "loop-policy", extract=True, session=sess)
+            self.assertTrue(second["extract"]["ok"], second["extract"])
+            self.assertTrue(second["extract"].get("merged_claims"), second["extract"])
+            self.assertEqual(validate(k), [])
+        finally:
+            shutil.rmtree(tmp)
+
 
 if __name__ == "__main__":
     unittest.main()
