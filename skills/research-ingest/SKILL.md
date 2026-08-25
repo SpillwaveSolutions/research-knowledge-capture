@@ -35,7 +35,9 @@ or `/research-extract` against the archived asset.
 
 `--source-kind` defaults to `deep_research`. Use `reference_doc`, `published_medium`, `published_substack` when that is what you have.
 
-`--extract` bumps extractor version to 2 unless set. Prompt hash: `--prompt-hash` or `--prompt-file`.
+`--extractor-version` defaults to the current extractor (`2`). `--extract` does not change identity. Same bytes under another version are reported, not duplicated, unless `--allow-reextract`. Prompt hash: `--prompt-hash` or `--prompt-file`.
+
+`index.md` and `README.md` titles use `parent/filename`.
 
 Files over 200 KB skip heuristic extract unless `--force-large`. Progress goes to stderr. Failed files append to `research/catalogs/ingest-errors.jsonl`; the run continues.
 

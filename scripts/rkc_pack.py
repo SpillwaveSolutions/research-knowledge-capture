@@ -34,9 +34,11 @@ def load_graph(root: Path):
 def sort_key(n: dict):
     conf = n.get("confidence")
     conf_sort = -(conf if isinstance(conf, (int, float)) else -1)
-    as_of = n.get("as_of") or ""
-    # newer as_of first; missing last. Invert codepoints so ISO dates reverse-sort.
-    as_of_key = tuple(-ord(c) for c in as_of) if as_of else (1,)
+    as_of = n.get("as_of")
+    if as_of in (None, ""):
+        as_of_key = (1,)
+    else:
+        as_of_key = tuple(-ord(c) for c in str(as_of))
     return (
         STATUS_RANK.get(n.get("status") or "draft", 9),
         0 if n.get("verified") else 1,

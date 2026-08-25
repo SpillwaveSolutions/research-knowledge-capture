@@ -37,10 +37,12 @@
       "type": "number"
     },
     "as_of": {
-      "type": "string"
+      "type": "string",
+      "format": "date"
     },
     "timestamp": {
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "author": {
       "type": "string"

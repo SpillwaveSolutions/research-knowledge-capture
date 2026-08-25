@@ -22,6 +22,7 @@ from rkc_common import (  # noqa: E402
 from rkc_extract import candidates_from_text, is_claim_sentence, run_extract  # noqa: E402
 from rkc_ids import slug, valid_id  # noqa: E402
 from rkc_ingest import IngestSession, ingest_file, source_title  # noqa: E402
+from rkc_pack import pack  # noqa: E402
 from rkc_validate import spine_issues, validate  # noqa: E402
 
 
@@ -48,6 +49,13 @@ class YamlTests(unittest.TestCase):
         dumped = dump_frontmatter({"title": "available in the SDK:"})
         self.assertIn('"available in the SDK:"', dumped)
 
+    def test_date_scalars_need_quote(self):
+        self.assertTrue(_needs_quote("2026-08-24"))
+        self.assertTrue(_needs_quote("2026-08-24T21:26:09Z"))
+        dumped = dump_frontmatter({"as_of": "2026-08-24", "timestamp": "2026-08-24T21:26:09Z"})
+        self.assertIn('as_of: "2026-08-24"', dumped)
+        self.assertIn('timestamp: "2026-08-24T21:26:09Z"', dumped)
+
     def test_mini_yaml_unescapes_newlines(self):
         raw = 'text: "line one\\nline two"\n'
         data = _mini_yaml(raw)
@@ -56,8 +64,9 @@ class YamlTests(unittest.TestCase):
 
 class ProvenanceTests(unittest.TestCase):
     def test_index_md_uses_parent_name(self):
-        self.assertEqual(source_title(Path("/articles/medium_published/my-post/index.md")), "my-post")
+        self.assertEqual(source_title(Path("/articles/medium_published/my-post/index.md")), "my-post/index.md")
         self.assertEqual(source_title(Path("/inbox/dump.md")), "dump.md")
+        self.assertEqual(source_title(Path("/docs/README.md")), "docs/README.md")
 
     def test_ingest_writes_origin_and_subject(self):
         tmp = Path(tempfile.mkdtemp())
@@ -69,7 +78,7 @@ class ProvenanceTests(unittest.TestCase):
             rec = ingest_file(article, k, "article", "harness-engineering", source_kind="published_medium")
             src = k / "research" / "sources" / f"{rec['source_id']}.md"
             fm, _ = parse_okf(src)
-            self.assertEqual(fm["title"], "why-harness-engineering")
+            self.assertEqual(fm["title"], "why-harness-engineering/index.md")
             self.assertEqual(fm["original_filename"], "index.md")
             self.assertEqual(fm["origin_path"], str(article.resolve()))
             self.assertEqual(fm["source_kind"], "published_medium")
@@ -137,6 +146,34 @@ class ValidateParseTests(unittest.TestCase):
                 self.skipTest("PyYAML not installed")
             errs = validate(k)
             self.assertTrue(any("unparsable" in e and "broken.md" in e for e in errs), errs)
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_names_unclosed_flow_and_continues(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            k = tmp / "knowledge"
+            (k / "research" / "subjects").mkdir(parents=True)
+            bad = k / "research" / "subjects" / "broken.md"
+            bad.write_text(
+                "---\ntype: Claim\nid: claim.x.01M0TT1NBH0BKT5W5R6QC8N73E\n"
+                "title: [unclosed flow\nstatus: draft\n---\n\nbody\n",
+                encoding="utf-8",
+            )
+            good = k / "research" / "subjects" / "ok.md"
+            good.write_text(
+                "---\ntype: Subject\nid: subject.loop-policy.01J8X000000000000000000001\n"
+                'title: ok\nstatus: draft\n---\n\n# ok\n',
+                encoding="utf-8",
+            )
+            from rkc_common import ParseError, parse_okf
+
+            with self.assertRaises(ParseError) as ctx:
+                parse_okf(bad)
+            self.assertIn("broken.md", str(ctx.exception))
+            errs = validate(k)
+            self.assertTrue(any("unparsable" in e and "broken.md" in e for e in errs), errs)
+            self.assertFalse(any("ok.md" in e for e in errs), errs)
         finally:
             shutil.rmtree(tmp)
 
@@ -222,6 +259,85 @@ class CatalogRebuildTests(unittest.TestCase):
             found = sess.find(rec["ingest_key"])
             self.assertIsNotNone(found)
             self.assertEqual(found["source_id"], rec["source_id"])
+        finally:
+            shutil.rmtree(tmp)
+
+
+class DateScalarTests(unittest.TestCase):
+    def test_parse_coerces_unquoted_as_of_to_str(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            p = tmp / "n.md"
+            p.write_text(
+                "---\ntype: Claim\nid: claim.loop-policy.01J8X000000000000000000006\n"
+                "title: x\nstatus: draft\nas_of: 2026-08-24\n"
+                "timestamp: 2026-08-24T21:26:09Z\n---\n\nbody\n",
+                encoding="utf-8",
+            )
+            fm, _ = parse_okf(p)
+            self.assertEqual(fm["as_of"], "2026-08-24")
+            self.assertIsInstance(fm["as_of"], str)
+            self.assertIsInstance(fm["timestamp"], str)
+            self.assertTrue(fm["timestamp"].endswith("Z"), fm["timestamp"])
+            self.assertIn("T", fm["timestamp"])
+            from rkc_common import write_okf
+
+            write_okf(p, fm, "body\n")
+            text = p.read_text(encoding="utf-8")
+            self.assertIn('as_of: "2026-08-24"', text)
+            self.assertIn('timestamp: "2026-08-24T21:26:09Z"', text)
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_pack_survives_unquoted_as_of(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            k = tmp / "knowledge"
+            p = k / "research" / "subjects" / "s.md"
+            p.parent.mkdir(parents=True)
+            nid = "subject.loop-policy.01J8X000000000000000000001"
+            p.write_text(
+                f"---\ntype: Subject\nid: {nid}\ntitle: Loop\nstatus: draft\n"
+                "as_of: 2026-08-24\ntimestamp: 2026-08-24T21:26:09Z\n---\n\n# Loop\n",
+                encoding="utf-8",
+            )
+            d = pack(k, nid, max_hops=1, max_nodes=5)
+            self.assertEqual(d["nodes"][0]["id"], nid)
+        finally:
+            shutil.rmtree(tmp)
+
+
+class ExtractorVersionTests(unittest.TestCase):
+    def test_omitting_extract_does_not_duplicate(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            k = tmp / "knowledge"
+            inbox = tmp / "d.md"
+            inbox.write_text("Loop policy is defined as the civic threshold.\n", encoding="utf-8")
+            a = ingest_file(inbox, k, "grok", "loop-policy", extract=True)
+            b = ingest_file(inbox, k, "grok", "loop-policy")
+            self.assertTrue(b["idempotent"])
+            self.assertFalse(b.get("existing_other_version"))
+            sources = list((k / "research" / "sources").glob("*.md"))
+            self.assertEqual(len(sources), 1)
+            c = ingest_file(inbox, k, "grok", "loop-policy", extract=True)
+            self.assertEqual((c.get("extract") or {}).get("skipped"), "idempotent")
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_other_extractor_version_is_reported_not_duplicated(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            k = tmp / "knowledge"
+            inbox = tmp / "d.md"
+            inbox.write_text("Loop policy is defined as the civic threshold.\n", encoding="utf-8")
+            a = ingest_file(inbox, k, "grok", "loop-policy", extractor_version="2")
+            b = ingest_file(inbox, k, "grok", "loop-policy", extractor_version="1")
+            self.assertTrue(b.get("existing_other_version"))
+            self.assertEqual(len(list((k / "research" / "sources").glob("*.md"))), 1)
+            c = ingest_file(inbox, k, "grok", "loop-policy", extractor_version="1", allow_reextract=True)
+            self.assertFalse(c.get("idempotent"))
+            self.assertEqual(len(list((k / "research" / "sources").glob("*.md"))), 2)
         finally:
             shutil.rmtree(tmp)
 

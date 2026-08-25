@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rkc_claim_key import normalize
-from rkc_common import OWNED_RELS, OWNED_TYPES, iter_okf, knowledge_root, plugin_root, resolve_asset
+from rkc_common import OWNED_RELS, OWNED_TYPES, ParseError, iter_okf, knowledge_root, plugin_root, resolve_asset
 from rkc_ids import valid_id
 
 STATUS = {"draft", "reviewed", "accepted", "rejected", "superseded"}
@@ -129,8 +129,13 @@ def main():
     )
     args = ap.parse_args()
     root = knowledge_root(args.root)
-    errs = validate(root)
-    warnings = spine_issues(root)
+    try:
+        errs = validate(root)
+        warnings = spine_issues(root)
+    except ParseError as e:
+        print("RKC validate FAILED")
+        print(" -", e)
+        sys.exit(1)
     if args.spine:
         errs.extend(warnings)
     elif warnings:
