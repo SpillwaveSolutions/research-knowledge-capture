@@ -2,7 +2,7 @@
 
 Layer 0 ContentPack for a research second brain. OKF Markdown + YAML is the source of truth. Agent Brain is a disposable index — see [`research-graph`](https://github.com/SpillwaveSolutions/research-graph).
 
-**Version:** 0.2.5 — Subject title comes from the slug, not the first source filename. See the [PRD](docs/prd/research-knowledge-capture-PRD.md).
+**Version:** 0.2.6 — dry-run writes nothing; empty sources are skipped. See the [PRD](docs/prd/research-knowledge-capture-PRD.md).
 
 ## What it owns
 

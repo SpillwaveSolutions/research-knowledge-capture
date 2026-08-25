@@ -17,3 +17,5 @@ YAML date quoting, named parse errors, ingest-key default, and index.md titles (
 Intra-run extract merge path (ticket `01KZWJ2RKC000000000000000B`) landed in 0.2.4 after the chapter-1 ingest test.
 
 Subject title from slug, not first source filename (ticket `01KZWJ2RKC000000000000000C`) landed in 0.2.5: GitHub issue #23.
+
+Dry-run index write and empty-source ingest (ticket `01KZWJ2RKC000000000000000D`) landed in 0.2.6: GitHub issues #25 and #26.

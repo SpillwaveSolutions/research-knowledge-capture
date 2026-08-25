@@ -39,6 +39,10 @@ or `/research-extract` against the archived asset.
 
 `--extractor-version` defaults to the current extractor (`2`). `--extract` does not change identity. Same bytes under another version are reported, not duplicated, unless `--allow-reextract`. Prompt hash: `--prompt-hash` or `--prompt-file`.
 
+`--dry-run` prints the plan and writes nothing, including no `research/catalogs/` directory.
+
+Empty, whitespace-only, and frontmatter-only files are skipped (`SKIP empty` on stderr, listed in `--errors-file`). `--min-source-bytes` defaults to 1 and applies to the payload after stripping frontmatter and whitespace. One-line pointer documents are kept.
+
 `index.md` and `README.md` titles use `parent/filename`.
 
 Files over 200 KB skip heuristic extract unless `--force-large`. Progress goes to stderr. Failed files append to `research/catalogs/ingest-errors.jsonl`; the run continues.

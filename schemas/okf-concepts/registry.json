@@ -1,6 +1,6 @@
 {
   "name": "rkc-okf-concept-schemas",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "okf_version": "0.2",
   "plugin": "research-knowledge-capture",
   "base": "okf-plugin/schemas/okf-concepts/BaseConcept.schema.json",

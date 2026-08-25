@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -32,6 +33,8 @@ from rkc_extract import EXTRACTOR_VERSION
 
 INDEX_REL = Path("research") / "catalogs" / "ingest-index.json"
 MAX_SOURCE_BYTES = 200 * 1024
+MIN_SOURCE_BYTES = 1
+FRONTMATTER = re.compile(r"\A---\r?\n.*?\r?\n---(?:\r?\n|$)", re.S)
 VENDOR_CONVENTION = (
     "grok",
     "gemini",
@@ -53,6 +56,24 @@ def sha256_file(p: Path) -> str:
 def ingest_key_for(digest: str, extractor_version: str, prompt_hash: str = "") -> str:
     raw = f"{digest}|{prompt_hash or ''}|{extractor_version}"
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def source_payload(text: str) -> str:
+    t = text.replace("\r\n", "\n").replace("\r", "\n")
+    m = FRONTMATTER.match(t)
+    if m:
+        t = t[m.end():]
+    return t.strip()
+
+
+def empty_reason(src: Path, min_source_bytes: int = MIN_SOURCE_BYTES) -> str | None:
+    text = src.read_text(encoding="utf-8", errors="replace")
+    payload = source_payload(text)
+    if not payload:
+        return "empty"
+    if min_source_bytes and len(payload.encode("utf-8")) < min_source_bytes:
+        return "below_min_source_bytes"
+    return None
 
 
 def source_title(src: Path) -> str:
@@ -115,9 +136,10 @@ def rebuild_ingest_index(knowledge: Path) -> dict:
 
 
 class IngestSession:
-    def __init__(self, knowledge: Path, *, rebuild: bool = False):
+    def __init__(self, knowledge: Path, *, rebuild: bool = False, dry_run: bool = False):
         self.knowledge = knowledge
-        if rebuild or not index_path(knowledge).exists():
+        self.dry_run = dry_run
+        if rebuild and not dry_run:
             self.index = rebuild_ingest_index(knowledge)
         else:
             self.index = load_ingest_index(knowledge)
@@ -161,9 +183,10 @@ class IngestSession:
         self.dirty = True
 
     def flush(self) -> None:
-        if self.dirty:
-            save_ingest_index(self.knowledge, self.index)
-            self.dirty = False
+        if self.dry_run or not self.dirty:
+            return
+        save_ingest_index(self.knowledge, self.index)
+        self.dirty = False
 
 
 def find_existing(knowledge: Path, ingest_key: str, session: IngestSession | None = None) -> dict | None:
@@ -205,9 +228,10 @@ def ingest_file(
     force_large: bool = False,
     allow_reextract: bool = False,
     subject_title: str | None = None,
+    min_source_bytes: int = MIN_SOURCE_BYTES,
 ):
     knowledge = Path(knowledge)
-    sess = session or IngestSession(knowledge)
+    sess = session or IngestSession(knowledge, dry_run=dry_run)
     extractor_version = extractor_version or EXTRACTOR_VERSION
     digest = sha256_file(src)
     ingest_key = ingest_key_for(digest, extractor_version, prompt_hash)
@@ -243,6 +267,17 @@ def ingest_file(
         elif extract:
             existing["extract"] = {"ok": True, "skipped": "idempotent"}
         return existing
+
+    skip = empty_reason(src, min_source_bytes)
+    if skip:
+        return {
+            "skipped": skip,
+            "title": title,
+            "origin_path": origin,
+            "sha256": digest,
+            "ingest_key": ingest_key,
+            "idempotent": False,
+        }
 
     hash_hit = sess.find_other_version(digest, prompt_hash, extractor_version)
     if hash_hit and not allow_reextract:
@@ -414,6 +449,7 @@ def main():
     ap.add_argument("--rebuild-index", action="store_true")
     ap.add_argument("--allow-reextract", action="store_true", help="Write a second SourceDocument when source_hash exists under another extractor_version.")
     ap.add_argument("--max-source-bytes", type=int, default=MAX_SOURCE_BYTES)
+    ap.add_argument("--min-source-bytes", type=int, default=MIN_SOURCE_BYTES)
     ap.add_argument("--max-candidates", type=int, default=400)
     ap.add_argument("--force-large", action="store_true")
     ap.add_argument("--errors-file", type=Path, default=None)
@@ -424,9 +460,10 @@ def main():
     overlay = json.loads(args.overlay.read_text(encoding="utf-8")) if args.overlay else None
     extractor_version = args.extractor_version or EXTRACTOR_VERSION
     knowledge = args.knowledge
-    session = IngestSession(knowledge, rebuild=args.rebuild_index)
+    session = IngestSession(knowledge, rebuild=args.rebuild_index, dry_run=args.dry_run)
     results = []
     errors = []
+    skipped = []
     files = [args.inbox] if args.inbox.is_file() else sorted(args.inbox.rglob("*"))
     files = [f for f in files if f.is_file() and f.suffix.lower() in {".md", ".txt"}]
     total = len(files)
@@ -452,15 +489,25 @@ def main():
                 force_large=args.force_large,
                 allow_reextract=args.allow_reextract,
                 subject_title=args.subject_title,
+                min_source_bytes=args.min_source_bytes,
             )
+            if rec.get("skipped"):
+                err = {"path": str(f), "error": rec["skipped"], "skipped": rec["skipped"]}
+                errors.append(err)
+                skipped.append({**err, "title": rec.get("title"), "sha256": rec.get("sha256")})
+                print(
+                    f"[rkc-ingest] {i}/{total} {f} SKIP {rec['skipped']}",
+                    file=sys.stderr,
+                )
+                continue
             results.append(rec)
             ext = rec.get("extract") or {}
             n_claims = len(ext.get("new_claims") or [])
-            skipped = ext.get("skipped") or ""
+            skipped_ext = ext.get("skipped") or ""
             print(
                 f"[rkc-ingest] {i}/{total} {f} subject={slug(args.subject)} "
                 f"idempotent={rec.get('idempotent')} claims={n_claims}"
-                + (f" skipped={skipped}" if skipped else ""),
+                + (f" skipped={skipped_ext}" if skipped_ext else ""),
                 file=sys.stderr,
             )
         except Exception as e:
@@ -474,18 +521,19 @@ def main():
     n_idem = sum(1 for r in results if r.get("idempotent") and not r.get("existing_other_version"))
     n_other = sum(1 for r in results if r.get("existing_other_version"))
     print(
-        f"[rkc-ingest] {n_new} ingested, {n_idem} idempotent, {n_other} existing at another extractor version",
+        f"[rkc-ingest] {n_new} ingested, {n_idem} idempotent, {n_other} existing at another extractor version, "
+        f"{len(skipped)} skipped",
         file=sys.stderr,
     )
     err_path = args.errors_file
-    if err_path is None:
+    if err_path is None and not args.dry_run:
         err_path = knowledge / "research" / "catalogs" / "ingest-errors.jsonl"
-    if errors:
+    if errors and err_path is not None:
         err_path.parent.mkdir(parents=True, exist_ok=True)
         with err_path.open("a", encoding="utf-8") as fh:
             for row in errors:
                 fh.write(json.dumps(row) + "\n")
-    print(json.dumps({"ingested": results, "errors": errors}, indent=2, default=str))
+    print(json.dumps({"ingested": results, "errors": errors, "skipped": skipped}, indent=2, default=str))
     return 1 if errors and not results else 0
 
 

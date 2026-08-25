@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.6 — 2026-08-25
+
+- `--dry-run` does not create `research/catalogs/ingest-index.json` or its parent directories. Closes [#25](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/25).
+- Empty, whitespace-only, and frontmatter-only sources are skipped and reported. `--min-source-bytes` defaults to 1. Closes [#26](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/26).
+
 ## 0.2.5 — 2026-08-25
 
 - Subject title is derived from the `--subject` slug (or `--subject-title`), not the first source filename. `rkc_spine.py` uses the same rule when it creates a missing Subject. Closes [#23](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/23).
