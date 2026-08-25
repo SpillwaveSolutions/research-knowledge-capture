@@ -28,8 +28,8 @@ from rkc_common import (
     write_okf,
 )
 from rkc_ids import make_id, slug
+from rkc_extract import EXTRACTOR_VERSION
 
-GENERIC_NAMES = {"index.md", "index.txt", "readme.md", "readme.txt"}
 INDEX_REL = Path("research") / "catalogs" / "ingest-index.json"
 MAX_SOURCE_BYTES = 200 * 1024
 VENDOR_CONVENTION = (
@@ -56,8 +56,8 @@ def ingest_key_for(digest: str, extractor_version: str, prompt_hash: str = "") -
 
 
 def source_title(src: Path) -> str:
-    if src.name.lower() in GENERIC_NAMES and src.parent.name not in {"", ".", "/"}:
-        return src.parent.name
+    if src.stem.lower() in {"index", "readme"} and src.parent.name not in {"", ".", "/"}:
+        return f"{src.parent.name}/{src.name}"
     return src.name
 
 
@@ -106,6 +106,8 @@ def rebuild_ingest_index(knowledge: Path) -> dict:
             "sha256": (fm.get("source_hash") or "").split(":")[-1],
             "asset_path": fm.get("asset_path"),
             "ingest_key": key,
+            "prompt_hash": fm.get("prompt_hash") or "",
+            "ingest_version": str(fm.get("ingest_version") or ""),
         }
     index = {"version": 1, "keys": keys}
     save_ingest_index(knowledge, index)
@@ -128,6 +130,24 @@ class IngestSession:
             return None
         return {**row, "idempotent": True}
 
+    def find_other_version(self, digest: str, prompt_hash: str, extractor_version: str) -> dict | None:
+        want_ph = prompt_hash or ""
+        want_ver = str(extractor_version)
+        for key, row in (self.index.get("keys") or {}).items():
+            if (row.get("sha256") or "") != digest:
+                continue
+            stored_ph = row.get("prompt_hash")
+            if stored_ph is None:
+                if want_ph:
+                    continue
+            elif stored_ph != want_ph:
+                continue
+            stored_ver = str(row.get("ingest_version") or "")
+            if stored_ver == want_ver:
+                continue
+            return {**row, "ingest_key": key}
+        return None
+
     def record(self, ingest_key: str, row: dict) -> None:
         self.index.setdefault("keys", {})[ingest_key] = {
             "source_id": row.get("source_id"),
@@ -135,6 +155,8 @@ class IngestSession:
             "sha256": row.get("sha256"),
             "asset_path": row.get("asset_path"),
             "ingest_key": ingest_key,
+            "prompt_hash": row.get("prompt_hash") or "",
+            "ingest_version": str(row.get("ingest_version") or ""),
         }
         self.dirty = True
 
@@ -168,7 +190,7 @@ def ingest_file(
     knowledge: Path,
     vendor: str,
     subject: str,
-    extractor_version: str = "1",
+    extractor_version: str | None = None,
     prompt_hash: str = "",
     extract: bool = False,
     subject_id: str | None = None,
@@ -181,9 +203,11 @@ def ingest_file(
     max_source_bytes: int = MAX_SOURCE_BYTES,
     max_candidates: int = 400,
     force_large: bool = False,
+    allow_reextract: bool = False,
 ):
     knowledge = Path(knowledge)
     sess = session or IngestSession(knowledge)
+    extractor_version = extractor_version or EXTRACTOR_VERSION
     digest = sha256_file(src)
     ingest_key = ingest_key_for(digest, extractor_version, prompt_hash)
     subject = slug(subject)
@@ -195,7 +219,7 @@ def ingest_file(
         existing["subject_id"] = existing.get("subject_id") or sid
         spine = _link_spine(spath, existing.get("task_id"), area, knowledge, sid, dry_run)
         existing.update(spine)
-        if extract:
+        if extract and overlay:
             existing["extract"] = _run_extract(
                 knowledge,
                 existing.get("asset_path"),
@@ -214,7 +238,27 @@ def ingest_file(
                 max_candidates,
                 force_large,
             )
+        elif extract:
+            existing["extract"] = {"ok": True, "skipped": "idempotent"}
         return existing
+
+    hash_hit = sess.find_other_version(digest, prompt_hash, extractor_version)
+    if hash_hit and not allow_reextract:
+        hit = hash_hit
+        sid, spath, _ = ensure_subject(knowledge, subject, title, dry_run=dry_run)
+        spine = _link_spine(spath, hit.get("task_id"), area, knowledge, sid, dry_run)
+        out = {
+            **hit,
+            "idempotent": True,
+            "existing_other_version": True,
+            "subject_id": sid,
+            "origin_path": origin,
+            "title": title,
+        }
+        out.update(spine)
+        if extract:
+            out["extract"] = {"ok": True, "skipped": "existing_other_version"}
+        return out
 
     asset_dir = knowledge / "research" / "source-assets" / digest
     if not dry_run:
@@ -279,6 +323,8 @@ def ingest_file(
         "title": title,
         "subject_id": subject_id,
         "area_id": spine.get("area_id"),
+        "prompt_hash": prompt_hash or "",
+        "ingest_version": str(extractor_version),
     }
     if not dry_run:
         sess.record(ingest_key, result)
@@ -355,7 +401,7 @@ def main():
     ap.add_argument("--subject-id", default=None)
     ap.add_argument("--area", default=None, help="ResearchArea slug. Created if missing; linked via has_subject.")
     ap.add_argument("--source-kind", default="deep_research")
-    ap.add_argument("--extractor-version", default="1")
+    ap.add_argument("--extractor-version", default=None)
     ap.add_argument("--prompt-hash", default="")
     ap.add_argument("--prompt-file", type=Path, default=None)
     ap.add_argument("--extract", action="store_true")
@@ -363,6 +409,7 @@ def main():
     ap.add_argument("--no-shard", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--rebuild-index", action="store_true")
+    ap.add_argument("--allow-reextract", action="store_true", help="Write a second SourceDocument when source_hash exists under another extractor_version.")
     ap.add_argument("--max-source-bytes", type=int, default=MAX_SOURCE_BYTES)
     ap.add_argument("--max-candidates", type=int, default=400)
     ap.add_argument("--force-large", action="store_true")
@@ -372,9 +419,7 @@ def main():
     if args.prompt_file:
         prompt_hash = hashlib.sha256(args.prompt_file.read_bytes()).hexdigest()
     overlay = json.loads(args.overlay.read_text(encoding="utf-8")) if args.overlay else None
-    extractor_version = args.extractor_version
-    if args.extract and extractor_version == "1":
-        extractor_version = "2"
+    extractor_version = args.extractor_version or EXTRACTOR_VERSION
     knowledge = args.knowledge
     session = IngestSession(knowledge, rebuild=args.rebuild_index)
     results = []
@@ -402,6 +447,7 @@ def main():
                 max_source_bytes=args.max_source_bytes,
                 max_candidates=args.max_candidates,
                 force_large=args.force_large,
+                allow_reextract=args.allow_reextract,
             )
             results.append(rec)
             ext = rec.get("extract") or {}
@@ -420,6 +466,13 @@ def main():
             errors.append(err)
             print(f"[rkc-ingest] {i}/{total} {f} ERROR {e}", file=sys.stderr)
     session.flush()
+    n_new = sum(1 for r in results if not r.get("idempotent"))
+    n_idem = sum(1 for r in results if r.get("idempotent") and not r.get("existing_other_version"))
+    n_other = sum(1 for r in results if r.get("existing_other_version"))
+    print(
+        f"[rkc-ingest] {n_new} ingested, {n_idem} idempotent, {n_other} existing at another extractor version",
+        file=sys.stderr,
+    )
     err_path = args.errors_file
     if err_path is None:
         err_path = knowledge / "research" / "catalogs" / "ingest-errors.jsonl"

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 — 2026-08-25
+
+- Quote date-like YAML scalars. `as_of` / `timestamp` / `captured_at` stay strings through parse and write. Closes [#16](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/16) and [#17](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/17).
+- `parse_okf` wraps `yaml.safe_load` in `ParseError` that names the file. `rkc_validate.py` reports it and continues. Closes [#6](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/6).
+- Default `--extractor-version` to `EXTRACTOR_VERSION`. Same bytes under another version are reported, not duplicated, unless `--allow-reextract`. Idempotent `--extract` skips the extractor. Closes [#18](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/18).
+- `index.md` / `README.md` titles become `parent/filename`. Closes [#19](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/19).
+
 ## 0.2.2 — 2026-08-24
 
 - `rkc_spine.py` / `/research-spine` repairs Area → Subject → Task on a tree ingested by 0.2.0. `--link-tasks`, `--list-subjects`, `--area-map`. Idempotent.

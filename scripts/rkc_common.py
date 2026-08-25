@@ -6,6 +6,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from datetime import date, datetime, timezone
 
 try:
     import yaml
@@ -207,6 +208,21 @@ class ParseError(Exception):
         super().__init__(f"{path}: unparsable: {cause}")
 
 
+def _coerce_yaml_types(obj):
+    """Keep date/timestamp fields as strings so pack and write_okf agree with the schema."""
+    if isinstance(obj, datetime):
+        if obj.tzinfo is None:
+            return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return obj.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if isinstance(obj, date):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: _coerce_yaml_types(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_coerce_yaml_types(x) for x in obj]
+    return obj
+
+
 def parse_okf(path: Path) -> tuple[dict, str]:
     global _YAML_FALLBACK_WARNED
     text = path.read_text(encoding="utf-8")
@@ -214,20 +230,25 @@ def parse_okf(path: Path) -> tuple[dict, str]:
     if not m:
         return {}, text
     raw, body = m.group(1), m.group(2)
-    if yaml:
-        data = yaml.safe_load(raw) or {}
-    else:
-        if not _YAML_FALLBACK_WARNED:
-            print(
-                "rkc: PyYAML is not installed; using _mini_yaml fallback. "
-                "Install with: pip install pyyaml",
-                file=sys.stderr,
-            )
-            _YAML_FALLBACK_WARNED = True
-        data = _mini_yaml(raw)
+    try:
+        if yaml:
+            data = yaml.safe_load(raw) or {}
+        else:
+            if not _YAML_FALLBACK_WARNED:
+                print(
+                    "rkc: PyYAML is not installed; using _mini_yaml fallback. "
+                    "Install with: pip install pyyaml",
+                    file=sys.stderr,
+                )
+                _YAML_FALLBACK_WARNED = True
+            data = _mini_yaml(raw)
+    except ParseError:
+        raise
+    except Exception as e:
+        raise ParseError(path, e) from e
     if not isinstance(data, dict):
         data = {}
-    return data, body
+    return _coerce_yaml_types(data), body
 
 
 def iter_okf(knowledge_root: Path, *, collect_errors: list | None = None):
@@ -241,6 +262,11 @@ def iter_okf(knowledge_root: Path, *, collect_errors: list | None = None):
             continue
         try:
             fm, body = parse_okf(p)
+        except ParseError as e:
+            if collect_errors is not None:
+                collect_errors.append(str(e))
+                continue
+            raise
         except Exception as e:
             if isinstance(e, (KeyboardInterrupt, SystemExit)):
                 raise
@@ -263,6 +289,10 @@ def iter_type(knowledge: Path, type_name: str):
             continue
         try:
             fm, body = parse_okf(p)
+        except ParseError:
+            continue
+        except (KeyboardInterrupt, SystemExit):
+            raise
         except Exception:
             continue
         if fm.get("type") == type_name:
@@ -321,10 +351,25 @@ def _needs_quote(s: str) -> bool:
         return True
     if s.rstrip().endswith(":"):
         return True
+    if yaml is not None:
+        try:
+            loaded = yaml.safe_load(s)
+        except Exception:
+            return True
+        if not isinstance(loaded, str):
+            return True
+    elif re.fullmatch(r"\d{4}-\d{2}-\d{2}([Tt ][\d:.]+(Z|[+-]\d{2}:?\d{2})?)?", s):
+        return True
+    elif re.fullmatch(r"-?\d+(\.\d+)?([eE][+-]?\d+)?", s):
+        return True
     return False
 
 
 def yaml_scalar(v) -> str:
+    if isinstance(v, datetime):
+        return json.dumps(_coerce_yaml_types(v), ensure_ascii=False)
+    if isinstance(v, date):
+        return json.dumps(v.isoformat(), ensure_ascii=False)
     if v is True:
         return "true"
     if v is False:

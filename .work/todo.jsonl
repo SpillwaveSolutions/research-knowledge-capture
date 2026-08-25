@@ -6,3 +6,4 @@
 {"id":"01KZWJ2RKC0000000000000006","title":"Phase 4 research-graph projector + /research-ask","status":"todo","phase":4,"kind":"index"}
 {"id":"01KZWJ2RKC0000000000000007","title":"Phase 5 content-media draws_from Article bridge","status":"todo","phase":5,"kind":"bridge"}
 {"id":"01KZWJ2RKC0000000000000009","title":"Spine repair command for 0.2.0 trees","status":"done","phase":2,"kind":"ingest","refs":["github#9","github#13"]}
+{"id":"01KZWJ2RKC000000000000000A","title":"Quote date scalars, name parse errors, ingest identity, index.md titles","status":"done","phase":2,"kind":"ingest","refs":["github#6","github#16","github#17","github#18","github#19","github#20"]}
