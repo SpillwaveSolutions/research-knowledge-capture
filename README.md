@@ -2,7 +2,7 @@
 
 Layer 0 ContentPack for a research second brain. OKF Markdown + YAML is the source of truth. Agent Brain is a disposable index — see [`research-graph`](https://github.com/SpillwaveSolutions/research-graph).
 
-**Version:** 0.2.1 — Phase 0–3 plus Phase 2 extractor, bulk-ingest hardening. See the [PRD](docs/prd/research-knowledge-capture-PRD.md).
+**Version:** 0.2.2 — spine repair plus bulk-ingest hardening. See the [PRD](docs/prd/research-knowledge-capture-PRD.md).
 
 ## What it owns
 
@@ -23,10 +23,10 @@ Hosts: Claude Code, Grok Build, Codex, Cursor, Agent Plugins 1.0. See [docs/HOST
 
 ## Commands
 
-| Host | Ingest | Extract | Pack | Validate |
-| --- | --- | --- | --- | --- |
-| Claude / Grok / Cursor | `/research-ingest` | `/research-extract` | `/research-pack` | `/research-validate` |
-| Codex | `$research-ingest` | `$research-extract` | `$research-pack` | `$research-validate` |
+| Host | Ingest | Extract | Pack | Validate | Spine |
+| --- | --- | --- | --- | --- | --- |
+| Claude / Grok / Cursor | `/research-ingest` | `/research-extract` | `/research-pack` | `/research-validate` | `/research-spine` |
+| Codex | `$research-ingest` | `$research-extract` | `$research-pack` | `$research-validate` | `$research-spine` |
 
 ```
 python3 scripts/rkc_validate.py --root sample-knowledge
@@ -35,6 +35,7 @@ python3 tests/test_rkc.py
 python3 tests/test_extract.py
 python3 tests/test_plugin.py
 python3 tests/test_bulk_fixes.py
+python3 tests/test_spine.py
 ```
 
 Public samples are **Northstar / Lumenfield fiction**. Live dumps stay in private trees.
@@ -43,6 +44,7 @@ Public samples are **Northstar / Lumenfield fiction**. Live dumps stay in privat
 
 - Lookup is `research/catalogs/ingest-index.json` (not a full-tree scan). Rebuild with `--rebuild-index`.
 - Archive-only ingest still creates the Subject and writes `has_task`. Pass `--area <slug>` for a ResearchArea + `has_subject`.
+- Repair a 0.2.0 tree with `python3 scripts/rkc_spine.py --knowledge knowledge --link-tasks` then `--area-map areas.json`.
 - Heuristic extract skips files over 200 KB. Use `--force-large` only when you mean it.
 - One process per Subject (or per knowledge tree). Do not `pkill -f` a multiprocessing ingest; kill by PID.
 - `vendor` is free text. Convention: `grok` `gemini` `claude` `deepseek` `chatgpt` `article` `perplexity` `unknown`.
