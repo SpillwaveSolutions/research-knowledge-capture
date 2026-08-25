@@ -2,7 +2,7 @@
 
 Layer 0 ContentPack for a research second brain. OKF Markdown + YAML is the source of truth. Agent Brain is a disposable index — see [`research-graph`](https://github.com/SpillwaveSolutions/research-graph).
 
-**Version:** 0.2.0 — Phase 0–3 plus Phase 2 extractor of the [PRD](docs/prd/research-knowledge-capture-PRD.md).
+**Version:** 0.2.1 — Phase 0–3 plus Phase 2 extractor, bulk-ingest hardening. See the [PRD](docs/prd/research-knowledge-capture-PRD.md).
 
 ## What it owns
 
@@ -34,9 +34,19 @@ python3 scripts/rkc_pack.py subject.loop-policy.01J8X000000000000000000001 --roo
 python3 tests/test_rkc.py
 python3 tests/test_extract.py
 python3 tests/test_plugin.py
+python3 tests/test_bulk_fixes.py
 ```
 
 Public samples are **Northstar / Lumenfield fiction**. Live dumps stay in private trees.
+
+## Bulk ingest
+
+- Lookup is `research/catalogs/ingest-index.json` (not a full-tree scan). Rebuild with `--rebuild-index`.
+- Archive-only ingest still creates the Subject and writes `has_task`. Pass `--area <slug>` for a ResearchArea + `has_subject`.
+- Heuristic extract skips files over 200 KB. Use `--force-large` only when you mean it.
+- One process per Subject (or per knowledge tree). Do not `pkill -f` a multiprocessing ingest; kill by PID.
+- `vendor` is free text. Convention: `grok` `gemini` `claude` `deepseek` `chatgpt` `article` `perplexity` `unknown`.
+- `--source-kind` defaults to `deep_research`.
 
 ## Retrieval ladder
 

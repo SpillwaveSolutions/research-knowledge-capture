@@ -1,6 +1,6 @@
 {
   "name": "research-knowledge-capture",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Research Knowledge Capture (RKC) for Claude Code and Grok Build. OKF ContentPack for research dumps, claims, evidence, and findings.",
   "author": {
     "name": "Rick Hightower",

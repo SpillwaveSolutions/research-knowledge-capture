@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """RKC ID convention: <type-slug>.<subject-slug>.<ulid>"""
 from __future__ import annotations
-import re, time, os
+import hashlib
+import os
+import re
+import time
 
 TYPE_SLUGS = {
     "ResearchArea": "area",
@@ -18,6 +21,8 @@ CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 ID_RE = re.compile(
     r"^(area|subject|task|source|question|claim|evidence|finding)\.[a-z0-9-]{1,64}\.[0-9A-HJKMNP-TV-Z]{26}$"
 )
+SLUG_MAX = 64
+SLUG_HASH_LEN = 8
 
 
 def _encode(n: int, length: int) -> str:
@@ -35,9 +40,19 @@ def ulid() -> str:
 
 
 def slug(s: str) -> str:
-    s = (s or "unsorted").lower()
-    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
-    return s[:64] or "unsorted"
+    """Filesystem-safe slug, max 64 chars.
+
+    Inputs longer than 64 characters keep a prefix and an 8-hex digest of the
+    *full* normalized value so distinct long names do not collapse.
+    """
+    raw = (s or "unsorted").lower()
+    normalized = re.sub(r"[^a-z0-9]+", "-", raw).strip("-") or "unsorted"
+    if len(normalized) <= SLUG_MAX:
+        return normalized
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:SLUG_HASH_LEN]
+    keep = SLUG_MAX - SLUG_HASH_LEN - 1
+    head = normalized[:keep].rstrip("-")
+    return f"{head}-{digest}"
 
 
 def subject_slug_from_id(value: str) -> str:
