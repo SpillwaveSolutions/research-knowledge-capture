@@ -15,3 +15,5 @@ Spine repair command (ticket `01KZWJ2RKC0000000000000009`) landed in 0.2.2: `rkc
 YAML date quoting, named parse errors, ingest-key default, and index.md titles (ticket `01KZWJ2RKC000000000000000A`) landed in 0.2.3: GitHub issues #6, #16–#19.
 
 Intra-run extract merge path (ticket `01KZWJ2RKC000000000000000B`) landed in 0.2.4 after the chapter-1 ingest test.
+
+Subject title from slug, not first source filename (ticket `01KZWJ2RKC000000000000000C`) landed in 0.2.5: GitHub issue #23.

@@ -204,6 +204,7 @@ def ingest_file(
     max_candidates: int = 400,
     force_large: bool = False,
     allow_reextract: bool = False,
+    subject_title: str | None = None,
 ):
     knowledge = Path(knowledge)
     sess = session or IngestSession(knowledge)
@@ -213,9 +214,10 @@ def ingest_file(
     subject = slug(subject)
     title = source_title(src)
     origin = str(src.resolve())
+    subj_title = (subject_title or "").strip() or None
     existing = sess.find(ingest_key)
     if existing:
-        sid, spath, _ = ensure_subject(knowledge, subject, title, dry_run=dry_run)
+        sid, spath, _ = ensure_subject(knowledge, subject, subj_title, dry_run=dry_run)
         existing["subject_id"] = existing.get("subject_id") or sid
         spine = _link_spine(spath, existing.get("task_id"), area, knowledge, sid, dry_run)
         existing.update(spine)
@@ -245,7 +247,7 @@ def ingest_file(
     hash_hit = sess.find_other_version(digest, prompt_hash, extractor_version)
     if hash_hit and not allow_reextract:
         hit = hash_hit
-        sid, spath, _ = ensure_subject(knowledge, subject, title, dry_run=dry_run)
+        sid, spath, _ = ensure_subject(knowledge, subject, subj_title, dry_run=dry_run)
         spine = _link_spine(spath, hit.get("task_id"), area, knowledge, sid, dry_run)
         out = {
             **hit,
@@ -270,7 +272,7 @@ def ingest_file(
     source_id = make_id("SourceDocument", subject)
     task_id = make_id("ResearchTask", subject)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    sid, spath, _created = ensure_subject(knowledge, subject, title, dry_run=dry_run)
+    sid, spath, _created = ensure_subject(knowledge, subject, subj_title, dry_run=dry_run)
     subject_id = subject_id or sid
     if not dry_run:
         src_md = knowledge / "research" / "sources" / f"{source_id}.md"
@@ -398,6 +400,7 @@ def main():
     ap.add_argument("--knowledge", type=Path, default=plugin_root() / "sample-knowledge")
     ap.add_argument("--vendor", default="grok", help="Free text. Convention: " + ", ".join(VENDOR_CONVENTION))
     ap.add_argument("--subject", default="unsorted")
+    ap.add_argument("--subject-title", default=None, help="Human-readable Subject title. Default: slug words, title-cased.")
     ap.add_argument("--subject-id", default=None)
     ap.add_argument("--area", default=None, help="ResearchArea slug. Created if missing; linked via has_subject.")
     ap.add_argument("--source-kind", default="deep_research")
@@ -448,6 +451,7 @@ def main():
                 max_candidates=args.max_candidates,
                 force_large=args.force_large,
                 allow_reextract=args.allow_reextract,
+                subject_title=args.subject_title,
             )
             results.append(rec)
             ext = rec.get("extract") or {}

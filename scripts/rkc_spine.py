@@ -88,12 +88,11 @@ def link_tasks(knowledge: Path, *, dry_run: bool) -> dict:
             continue
         slug = subject_slug_from_id(tid)
         if slug not in by_slug:
-            title = fm.get("title") or slug.replace("-", " ").title()
             if dry_run:
                 created_subjects += 1
                 linked += 1
                 continue
-            sid, spath, created = ensure_subject(knowledge, slug, title, dry_run=False)
+            sid, spath, created = ensure_subject(knowledge, slug, None, dry_run=False)
             by_slug[slug] = (sid, spath)
             if created:
                 created_subjects += 1
