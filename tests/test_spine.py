@@ -85,6 +85,29 @@ class SpineRepairTests(unittest.TestCase):
         finally:
             shutil.rmtree(tmp)
 
+    def test_created_subject_title_from_slug_not_task(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            k = tmp / "knowledge"
+            inbox = tmp / "_Sidebar.md"
+            inbox.write_text("# nav stub\n", encoding="utf-8")
+            ingest_file(inbox, k, "article", "ref-okf-plugin")
+            for p in (k / "research" / "subjects").glob("*.md"):
+                p.unlink()
+            result = link_tasks(k, dry_run=False)
+            self.assertEqual(result["created_subjects"], 1)
+            subjects = list((k / "research" / "subjects").glob("*.md"))
+            self.assertEqual(len(subjects), 1)
+            fm, _ = parse_okf(subjects[0])
+            self.assertEqual(fm["title"], "Ref Okf Plugin")
+            self.assertNotIn("Sidebar", fm["title"])
+            self.assertNotIn("Ingest", fm["title"])
+        finally:
+            shutil.rmtree(tmp)
+
+
+
+
     def test_sample_already_spined(self):
         result = link_tasks(SAMPLE, dry_run=True)
         self.assertEqual(result["created_subjects"], 0)

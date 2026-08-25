@@ -87,8 +87,57 @@ class ProvenanceTests(unittest.TestCase):
             self.assertEqual(len(subjects), 1)
             s_fm, _ = parse_okf(subjects[0])
             self.assertEqual(s_fm["type"], "Subject")
+            self.assertEqual(s_fm["title"], "Harness Engineering")
             targets = [l["target"] for l in s_fm.get("links") or [] if l.get("rel") == "has_task"]
             self.assertEqual(targets, [rec["task_id"]])
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_subject_title_is_slug_not_filename(self):
+        """#23: Subject title must not follow filesystem order of source names."""
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            k = tmp / "knowledge"
+            docs = tmp / "docs"
+            docs.mkdir()
+            (docs / "_Sidebar.md").write_text("# nav stub\n", encoding="utf-8")
+            (docs / "API_REFERENCE.md").write_text("# api\n", encoding="utf-8")
+            names = []
+            for f in sorted(docs.iterdir()):
+                rec = ingest_file(f, k, "article", "ref-okf-plugin")
+                names.append(rec["title"])
+            subjects = list((k / "research" / "subjects").glob("*.md"))
+            self.assertEqual(len(subjects), 1)
+            s_fm, _ = parse_okf(subjects[0])
+            self.assertNotIn(s_fm["title"], names)
+            self.assertNotEqual(s_fm["title"], "_Sidebar.md")
+            self.assertNotEqual(s_fm["title"], "API_REFERENCE.md")
+            self.assertEqual(s_fm["title"], "Ref Okf Plugin")
+            sources = list((k / "research" / "sources").glob("*.md"))
+            self.assertEqual(len(sources), 2)
+            src_titles = {parse_okf(p)[0]["title"] for p in sources}
+            self.assertEqual(src_titles, {"_Sidebar.md", "API_REFERENCE.md"})
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_explicit_subject_title(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            k = tmp / "knowledge"
+            inbox = tmp / "_Sidebar.md"
+            inbox.write_text("# nav\n", encoding="utf-8")
+            ingest_file(
+                inbox,
+                k,
+                "article",
+                "ref-okf-plugin",
+                subject_title="OKF plugin reference",
+            )
+            subjects = list((k / "research" / "subjects").glob("*.md"))
+            s_fm, _ = parse_okf(subjects[0])
+            self.assertEqual(s_fm["title"], "OKF plugin reference")
+            src = list((k / "research" / "sources").glob("*.md"))
+            self.assertEqual(parse_okf(src[0])[0]["title"], "_Sidebar.md")
         finally:
             shutil.rmtree(tmp)
 

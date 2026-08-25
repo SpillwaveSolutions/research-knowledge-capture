@@ -22,6 +22,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/rkc_ingest.py _inbox/research-dumps \
   --knowledge knowledge --vendor grok --subject <slug> --area <area-slug>
 ```
 
+`--subject` is the slug. The Subject **title** is slug words, title-cased (`ref-okf-plugin` → `Ref Okf Plugin`), not the first source filename. Pass `--subject-title "OKF plugin"` for an explicit name.
+
 Then extract:
 
 ```

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.5 — 2026-08-25
+
+- Subject title is derived from the `--subject` slug (or `--subject-title`), not the first source filename. `rkc_spine.py` uses the same rule when it creates a missing Subject. Closes [#23](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/23).
+
 ## 0.2.4 — 2026-08-25
 
 - Intra-run claim merge no longer calls `add_link` on a node whose path is still `None`. A second file that repeats a claim from the first no longer crashes extract with `'NoneType' object has no attribute 'read_text'`.
