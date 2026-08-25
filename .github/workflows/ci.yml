@@ -23,6 +23,7 @@ jobs:
           python3 tests/test_rkc.py
           python3 tests/test_extract.py
           python3 tests/test_bulk_fixes.py
+          python3 tests/test_spine.py
       - name: Validate sample-knowledge
         run: python3 scripts/rkc_validate.py --root sample-knowledge --spine
       - name: Pack spine from Subject

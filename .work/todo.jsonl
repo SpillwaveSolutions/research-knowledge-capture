@@ -5,4 +5,4 @@
 {"id":"01KZWJ2RKC0000000000000005","title":"Phase 2 extractor: segmentation, PR summary, claim_key merge","status":"done","phase":2,"kind":"extractor"}
 {"id":"01KZWJ2RKC0000000000000006","title":"Phase 4 research-graph projector + /research-ask","status":"todo","phase":4,"kind":"index"}
 {"id":"01KZWJ2RKC0000000000000007","title":"Phase 5 content-media draws_from Article bridge","status":"todo","phase":5,"kind":"bridge"}
-{"id":"01KZWJ2RKC0000000000000008","title":"Bulk ingest hardening (issues 1-12)","status":"done","phase":2,"kind":"ingest","refs":["github#1","github#2","github#3","github#4","github#5","github#6","github#7","github#8","github#9","github#10","github#11","github#12","github#13"]}
+{"id":"01KZWJ2RKC0000000000000009","title":"Spine repair command for 0.2.0 trees","status":"done","phase":2,"kind":"ingest","refs":["github#9","github#13"]}

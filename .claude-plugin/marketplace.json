@@ -11,7 +11,7 @@
       "name": "research-knowledge-capture",
       "source": "./",
       "description": "Research Knowledge Capture (RKC): ingest deep-research dumps into an OKF ContentPack.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {"name": "Rick Hightower"},
       "homepage": "https://github.com/SpillwaveSolutions/research-knowledge-capture",
       "repository": "https://github.com/SpillwaveSolutions/research-knowledge-capture",

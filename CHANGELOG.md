@@ -1,6 +1,11 @@
 # Changelog
 
+## 0.2.2 — 2026-08-24
+
+- `rkc_spine.py` / `/research-spine` repairs Area → Subject → Task on a tree ingested by 0.2.0. `--link-tasks`, `--list-subjects`, `--area-map`. Idempotent.
+
 ## 0.2.1 — 2026-08-24
+
 
 Bulk-ingest hardening from the first 2,997-file corpus ([#13](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/13)).
 
