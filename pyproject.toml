@@ -1,6 +1,6 @@
 [project]
 name = "research-knowledge-capture"
-version = "0.2.3"
+version = "0.2.4"
 description = "RKC Layer 0 ContentPack — research dumps into OKF."
 readme = "README.md"
 requires-python = ">=3.10"

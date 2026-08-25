@@ -278,10 +278,10 @@ def write_claim(
     extra_links: list[dict],
     shard: bool,
     dry_run: bool,
-) -> str:
+) -> tuple[str, Path | None]:
     cid = make_id("Claim", subject_slug)
     if dry_run:
-        return cid
+        return cid, None
     path = concept_dir(knowledge, "Claim", subject_slug, shard) / f"{cid}.md"
     links = list(extra_links)
     write_okf(
@@ -306,7 +306,7 @@ def write_claim(
         },
         f"# Claim\n\n{text}\n",
     )
-    return cid
+    return cid, path
 
 
 def candidates_from_text(asset_text: str, max_candidates: int = MAX_CANDIDATES) -> list[dict]:
@@ -585,7 +585,7 @@ def run_extract(
                 knowledge, subject_slug, cand["span"], rel_asset, source_hash, vendor, shard, dry_run
             )
             summary["new_evidence"].append(evid_id)
-            if not dry_run:
+            if not dry_run and existing.get("path"):
                 add_link(existing["path"], "evidenced_by", evid_id)
                 remember_evidence(idx, evid_id, loc_with_asset, source_hash, cand["span"]["text"])
                 existing["fm"].setdefault("links", []).append({"rel": "evidenced_by", "target": evid_id})
@@ -613,7 +613,7 @@ def run_extract(
             knowledge, subject_slug, cand["span"], rel_asset, source_hash, vendor, shard, dry_run
         )
         extra_links.append({"rel": "evidenced_by", "target": evid_id})
-        cid = write_claim(
+        cid, claim_path = write_claim(
             knowledge,
             subject_slug,
             subject_id,
@@ -641,7 +641,7 @@ def run_extract(
                     "claim_kind": cand["claim_kind"],
                     "description": cand["text"],
                 },
-                "path": None,
+                "path": claim_path,
                 "body": cand["text"],
             }
             idx["claims_by_key"].setdefault(

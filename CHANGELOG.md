@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4 — 2026-08-25
+
+- Intra-run claim merge no longer calls `add_link` on a node whose path is still `None`. A second file that repeats a claim from the first no longer crashes extract with `'NoneType' object has no attribute 'read_text'`.
+
 ## 0.2.3 — 2026-08-25
 
 - Quote date-like YAML scalars. `as_of` / `timestamp` / `captured_at` stay strings through parse and write. Closes [#16](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/16) and [#17](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/17).
