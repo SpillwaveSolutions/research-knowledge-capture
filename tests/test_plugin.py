@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-VERSION = "0.2.6"
+VERSION = "0.2.7"
 NAME = "research-knowledge-capture"
 
 
@@ -58,6 +58,7 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertTrue((REPO / manifest["commands"]).is_dir())
 
     def test_skill_frontmatter(self) -> None:
+        names = set()
         for skill in sorted((REPO / "skills").glob("*/SKILL.md")):
             text = skill.read_text()
             match = re.match(r"^---\n(.*?)\n---", text, re.S)
@@ -65,6 +66,24 @@ class PluginPackagingTests(unittest.TestCase):
             block = match.group(1)
             self.assertRegex(block, r"(?m)^name: [a-z0-9-]+$")
             self.assertRegex(block, r"(?m)^description: .+$")
+            names.add(re.search(r"(?m)^name: ([a-z0-9-]+)$", block).group(1))
+        self.assertIn("research-retrieve", names)
+        self.assertIn("research-search", names)
+
+    def test_agent_frontmatter(self) -> None:
+        names = set()
+        agents = list((REPO / "agents").glob("*.md"))
+        self.assertGreaterEqual(len(agents), 2)
+        for agent in agents:
+            text = agent.read_text()
+            match = re.match(r"^---\n(.*?)\n---", text, re.S)
+            self.assertIsNotNone(match, agent)
+            block = match.group(1)
+            self.assertRegex(block, r"(?m)^name: [a-z0-9-]+$")
+            self.assertRegex(block, r"(?m)^description: .+$")
+            names.add(re.search(r"(?m)^name: ([a-z0-9-]+)$", block).group(1))
+        self.assertIn("research-retriever", names)
+        self.assertIn("research-capturer", names)
 
 
 if __name__ == "__main__":

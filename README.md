@@ -2,7 +2,7 @@
 
 Layer 0 ContentPack for a research second brain. OKF Markdown + YAML is the source of truth. Agent Brain is a disposable index — see [`research-graph`](https://github.com/SpillwaveSolutions/research-graph).
 
-**Version:** 0.2.6 — dry-run writes nothing; empty sources are skipped. See the [PRD](docs/prd/research-knowledge-capture-PRD.md).
+**Version:** 0.2.7 — query-time `research-retriever` + `rkc_pack --summary` + thin `rkc_search`. See the [PRD](docs/prd/research-knowledge-capture-PRD.md).
 
 ## What it owns
 
@@ -23,19 +23,21 @@ Hosts: Claude Code, Grok Build, Codex, Cursor, Agent Plugins 1.0. See [docs/HOST
 
 ## Commands
 
-| Host | Ingest | Extract | Pack | Validate | Spine |
-| --- | --- | --- | --- | --- | --- |
-| Claude / Grok / Cursor | `/research-ingest` | `/research-extract` | `/research-pack` | `/research-validate` | `/research-spine` |
-| Codex | `$research-ingest` | `$research-extract` | `$research-pack` | `$research-validate` | `$research-spine` |
+| Host | Ingest | Extract | Pack | Retrieve | Search | Validate | Spine |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Claude / Grok / Cursor | `/research-ingest` | `/research-extract` | `/research-pack` | `/research-retrieve` | `/research-search` | `/research-validate` | `/research-spine` |
+| Codex | `$research-ingest` | `$research-extract` | `$research-pack` | `$research-retrieve` | `$research-search` | `$research-validate` | `$research-spine` |
 
 ```
 python3 scripts/rkc_validate.py --root sample-knowledge
-python3 scripts/rkc_pack.py subject.loop-policy.01J8X000000000000000000001 --root sample-knowledge
+python3 scripts/rkc_pack.py subject.loop-policy.01J8X000000000000000000001 --root sample-knowledge --summary
+python3 scripts/rkc_search.py "false civic alerts" --root sample-knowledge --limit 5 --json
 python3 tests/test_rkc.py
 python3 tests/test_extract.py
 python3 tests/test_plugin.py
 python3 tests/test_bulk_fixes.py
 python3 tests/test_spine.py
+python3 tests/test_search.py
 ```
 
 Public samples are **Northstar / Lumenfield fiction**. Live dumps stay in private trees.
@@ -53,7 +55,7 @@ Public samples are **Northstar / Lumenfield fiction**. Live dumps stay in privat
 
 ## Retrieval ladder
 
-`rg` → `/research-pack` → BM25/Chroma → Kuzu last (Layer 1).
+`rkc_search` (`rg` → scan) → `research-retriever` / `rkc_pack --summary` → BM25/Chroma → Kuzu last (Layer 1). Q&A retrieval is a sub-agent: the parent gets a summary card only. `research-graph` may feed seeds later and is not required for L0.
 
 ## Actor
 

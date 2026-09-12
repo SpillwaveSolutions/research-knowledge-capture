@@ -16,7 +16,7 @@ sys.path.insert(0, str(SCRIPTS))
 from rkc_claim_key import claim_key, normalize  # noqa: E402
 from rkc_ids import make_id, valid_id  # noqa: E402
 from rkc_ingest import ingest_file  # noqa: E402
-from rkc_pack import pack  # noqa: E402
+from rkc_pack import format_summary, pack  # noqa: E402
 from rkc_validate import validate  # noqa: E402
 
 SAMPLE = REPO / "sample-knowledge"
@@ -90,6 +90,46 @@ class PackSpineTests(unittest.TestCase):
     def test_fail_closed_zero_nodes(self):
         with self.assertRaises(SystemExit):
             pack(SAMPLE, SUBJ, max_hops=2, max_nodes=0)
+
+    def test_fail_closed_zero_tokens(self):
+        with self.assertRaises(SystemExit):
+            pack(SAMPLE, SUBJ, max_hops=2, max_nodes=20, max_tokens=0)
+
+    def test_pack_accepts_path_seed(self):
+        path = SAMPLE / "research" / "subjects" / f"{SUBJ}.md"
+        d = pack(SAMPLE, str(path), max_hops=2, max_nodes=20)
+        self.assertEqual(d["root"], SUBJ)
+        self.assertEqual(d["seed"]["type"], "Subject")
+        self.assertIn("subjects/", d["seed"]["path"])
+
+    def test_summary_is_card_friendly(self):
+        d = pack(SAMPLE, SUBJ, max_hops=2, max_nodes=20)
+        text = format_summary(d)
+        self.assertIn("## Pack summary", text)
+        self.assertIn("hops=2", text)
+        self.assertIn("tokens=", text)
+        self.assertIn("Spine: Finding=", text)
+        self.assertGreaterEqual(d["spine"]["Finding"], 1)
+        self.assertGreaterEqual(d["spine"]["Claim"], 1)
+        self.assertGreaterEqual(d["spine"]["Evidence"], 1)
+        self.assertIn("Lead nodes:", text)
+        self.assertIn("Open gaps:", text)
+        self.assertLessEqual(d["tokens"], d["token_budget"])
+        self.assertTrue(1 <= d["tokens"])
+
+    def test_tiny_finding_keeps_spine(self):
+        d = pack(SAMPLE, FIND, max_hops=1, max_nodes=8)
+        types = {n["type"] for n in d["nodes"]}
+        self.assertIn("Finding", types)
+        self.assertIn("Claim", types)
+        self.assertIn("Evidence", types)
+        self.assertLessEqual(len(d["nodes"]), 8)
+
+    def test_question_summary_names_finding(self):
+        d = pack(SAMPLE, QID, max_hops=2, max_nodes=20)
+        text = format_summary(d)
+        self.assertIn(FIND, text)
+        self.assertEqual(d["gaps"], ["none"])
 
 
 class FailClosedTests(unittest.TestCase):

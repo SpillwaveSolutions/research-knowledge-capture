@@ -21,7 +21,7 @@ This is a ContentPack, not a new product. Same rules as PKC, SAC, and DEKC: owne
 | L0 | **this plugin** | nouns, folders, registered rels, ingest, extract, `/research-pack`, validate |
 | L1 | `research-graph` | Chroma + BM25 + Kuzu projector, `/research-ask`. Owns **no** types. Projector stays here until a second consumer needs it in core. |
 
-Retrieval ladder: `rg` → `/research-pack` → BM25/Chroma → Kuzu last.
+Retrieval ladder: `rkc_search` (`rg` → scan) → `research-retriever` / `rkc_pack --summary` → BM25/Chroma → Kuzu last. Q&A retrieval is a sub-agent; the parent gets a summary card only.
 
 Do not fork Agent Brain. `GRAPH_USE_LLM_EXTRACTION=false`. Default project `accepted|reviewed` only.
 
@@ -104,7 +104,7 @@ Northstar / Lumenfield **fiction only**. Eval corpus:
 | 0 WikiTicket + ADRs | **done** | `.work/`, ADRs 001–007, actor isolation |
 | 1 Schemas + samples + eval | **done** | 8 schemas, registry, fiction corpus, tests |
 | 2 Ingest + extractor | **done** | archive, idempotency, segmentation, claim_key merge, overlay, PR summary |
-| 3 `/research-pack` | **done** | spine, question inbound, rank, fail-closed budget |
+| 3 `/research-pack` | **done** | spine, question inbound, rank, fail-closed budget, `--summary`, `research-retriever` |
 | 4 `research-graph` | **stub** | projector + `/research-ask`; Agent Brain; no LLM extraction |
 | 5 Article bridge | **todo** | content-media registry patch for `draws_from`; marketplace hardening |
 
