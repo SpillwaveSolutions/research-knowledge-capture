@@ -15,3 +15,5 @@ Rules:
 4. Verbatim quotes verified against the archived asset.
 5. Ready PR. No force-push. No write to main.
 6. Public samples are fiction (Northstar / Lumenfield).
+
+Q&A retrieval (ResearchQuestion, Finding, Claim, Evidence, Subject, SourceDocument) is **not** yours. Spawn `research-retriever` via `/research-retrieve`. Do not pack inline. The parent keeps the summary card only.

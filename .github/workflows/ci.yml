@@ -24,6 +24,7 @@ jobs:
           python3 tests/test_extract.py
           python3 tests/test_bulk_fixes.py
           python3 tests/test_spine.py
+          python3 tests/test_search.py
       - name: Validate sample-knowledge
         run: python3 scripts/rkc_validate.py --root sample-knowledge --spine
       - name: Pack spine from Subject
@@ -31,5 +32,13 @@ jobs:
           python3 scripts/rkc_pack.py subject.loop-policy.01J8X000000000000000000001 \
             --root sample-knowledge > /tmp/pack.json
           python3 -c "import json; d=json.load(open('/tmp/pack.json')); ids={n['id'] for n in d['nodes']}; types={n['type'] for n in d['nodes']}; assert 'Claim' in types and 'Evidence' in types, d; assert 'claim.loop-policy.01J8X000000000000000000006' in ids"
+          python3 scripts/rkc_pack.py subject.loop-policy.01J8X000000000000000000001 \
+            --root sample-knowledge --summary > /tmp/pack-summary.md
+          grep -q "Pack summary" /tmp/pack-summary.md
+          grep -q "Finding=" /tmp/pack-summary.md
+      - name: Search sample-knowledge
+        run: |
+          python3 scripts/rkc_search.py "false civic alerts" --root sample-knowledge --engine scan --json > /tmp/search.json
+          python3 -c "import json; d=json.load(open('/tmp/search.json')); assert d['count']>=1, d; types={r['type'] for r in d['results']}; assert 'Finding' in types or 'ResearchQuestion' in types, d"
       - name: Segment sample dump
         run: python3 scripts/rkc_segment.py sample-knowledge/research/source-assets/3134869d568209bfb387f9a6b8eeada1e0596b64e90460b623fa58e187f77169/original.md

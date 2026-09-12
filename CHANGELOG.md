@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.7 — 2026-09-12
+
+Query-time retrieval, PKC/SAC/DEKC parity.
+
+- `agents/research-retriever.md` — isolated retriever. Scores and deep-walks off the parent. Returns a summary card only.
+- `/research-retrieve` skill + command. Parent spawns the retriever; do not pack inline for Q&A.
+- `rkc_pack.py --summary` — compact card-friendly pack (seed, hops/nodes/tokens, spine counts, lead nodes, gaps). `--tiny` is hops=1 / max_nodes=8. `--max-tokens` fail-closed (default 32000). Seed may be an id, path, or stem.
+- `rkc_search.py` + `/research-search` — git-native `rg` → scan ladder. AND terms, type filter, limit 5, `--json`. No Chroma, BM25, or Kuzu. Layer 1 may feed seeds later.
+- `research-capturer` delegates Q&A retrieval to `research-retriever`.
+
 ## 0.2.6 — 2026-08-25
 
 - `--dry-run` does not create `research/catalogs/ingest-index.json` or its parent directories. Closes [#25](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/25).

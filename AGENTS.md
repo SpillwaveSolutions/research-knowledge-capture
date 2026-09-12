@@ -17,6 +17,8 @@ Layer 0 ContentPack. OKF Markdown + YAML is the source of truth.
 - `/research-ingest` · `$research-ingest`
 - `/research-extract` · `$research-extract`
 - `/research-pack` · `$research-pack`
+- `/research-retrieve` · `$research-retrieve`
+- `/research-search` · `$research-search`
 - `/research-validate` · `$research-validate`
 - `/research-spine` · `$research-spine`
 
@@ -26,6 +28,8 @@ Deterministic:
 python3 scripts/rkc_ingest.py _inbox/research-dumps --knowledge knowledge --vendor grok --subject loop-policy
 python3 scripts/rkc_extract.py --knowledge knowledge --asset research/source-assets/<sha>/original.md --subject-id <id>
 python3 scripts/rkc_pack.py subject.loop-policy.01J8X000000000000000000001 --root sample-knowledge
+python3 scripts/rkc_pack.py subject.loop-policy.01J8X000000000000000000001 --root sample-knowledge --summary
+python3 scripts/rkc_search.py "false civic alerts" --root sample-knowledge --limit 5 --json
 python3 scripts/rkc_validate.py --root sample-knowledge
 python3 scripts/rkc_spine.py --knowledge sample-knowledge --list-subjects
 python3 tests/test_rkc.py
@@ -33,7 +37,10 @@ python3 tests/test_extract.py
 python3 tests/test_plugin.py
 python3 tests/test_bulk_fixes.py
 python3 tests/test_spine.py
+python3 tests/test_search.py
 ```
+
+Query-time retrieval: spawn `research-retriever` (`/research-retrieve`). Scoring and deep walks stay off the parent. Parent gets a summary card only. `rkc_search.py` is git-native (`rg` → scan). Layer 1 (`research-graph`) may feed seeds later and is not required for this cut.
 
 ## Operating principles
 

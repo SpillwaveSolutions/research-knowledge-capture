@@ -10,3 +10,4 @@
 {"id":"01KZWJ2RKC000000000000000B","title":"Extractor merge must keep claim path in the session index","status":"done","phase":2,"kind":"extractor"}
 {"id":"01KZWJ2RKC000000000000000C","title":"Subject title from slug not first source filename","status":"done","phase":2,"kind":"ingest","refs":["github#23"]}
 {"id":"01KZWJ2RKC000000000000000D","title":"Dry-run writes no index; skip empty sources","status":"done","phase":2,"kind":"ingest","refs":["github#25","github#26"]}
+{"id":"01KZWJ2RKC000000000000000E","title":"Query-time research-retriever + pack --summary + rkc_search","status":"done","phase":3,"kind":"pack"}

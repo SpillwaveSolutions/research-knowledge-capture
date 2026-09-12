@@ -9,4 +9,5 @@ description: Bind a Grok Bot agent to RKC. Isolation, identity, fail-closed writ
 2. Grok Build loads the Claude plugin layout with zero config. `.grok-plugin/marketplace.json` pins identity.
 3. Isolated session. Ready PR. No force-push. No write to main.
 4. After ingest, run `/research-extract`. Overlay quotes must match the source-asset. Never auto-supersede accepted or verified nodes.
-5. Layer 1 lives in `research-graph`. Do not stand up Chroma/Kuzu from this plugin.
+5. Q&A retrieval: spawn `research-retriever`. Parent keeps the summary card only.
+6. Layer 1 lives in `research-graph`. Do not stand up Chroma/Kuzu from this plugin. L0 `rkc_search` + pack `--summary` are enough for this cut.
