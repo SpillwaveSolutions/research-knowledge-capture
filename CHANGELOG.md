@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- `rkc_search.py` scan path parses each file once (closes [#30](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/30)). `iter_okf` already parsed every file to yield it; `search()` parsed each again (measured 2.0×, ~2.9 s vs 99 ms for rg on a 3k-file tree). The scan rung is what hosts without ripgrep run.
+- `rkc_validate.py` parses the tree once per run; `validate()` and `spine_issues()` share it (`load_tree`).
+- Search parity ([#31](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/31)): the filename stem no longer enters the haystack (`hay_title`, `hay_id`). A titleless node whose filename matched the query was found by `scan` but invisible to the `rg` prefilter. Filenames are not content; display still falls back to the stem.
+- `find_rg()` ([#32](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/32)) honours `RKC_RG_PATH` / `OKF_RG_PATH` / `SECOND_BRAIN_RG_PATH` and fails closed when the override is unusable — the same rule as research-graph and PKC, so one env var means one thing across plugins.
+- Scan search skips unparsable files instead of aborting, matching the rg path.
+- Tests: `tests/fixtures/fake_rg.py` (ported from PKC) and rg-vs-scan parity tests; the rg engine had no coverage.
+
 ## 0.2.7 — 2026-09-12
 
 Query-time retrieval, PKC/SAC/DEKC parity.

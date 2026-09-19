@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -41,7 +42,28 @@ def tokenize(q: str) -> list[str]:
     return [t for t in re.split(r"\s+", q.strip().lower()) if t]
 
 
+RG_ENV_VARS = ("RKC_RG_PATH", "OKF_RG_PATH", "SECOND_BRAIN_RG_PATH")
+
+
 def find_rg() -> str | None:
+    """rg on PATH, or an explicit override.
+
+    An override that is set but unusable (missing, not executable, not on
+    PATH) fails closed: rg is disabled rather than silently found on PATH.
+    Operators and tests rely on that to turn rg off. Same rule as
+    research-graph and PKC.
+    """
+    for var in RG_ENV_VARS:
+        override = (os.environ.get(var) or "").strip()
+        if not override:
+            continue
+        p = Path(override)
+        if p.is_file() and os.access(p, os.X_OK):
+            return str(p.resolve())
+        found = shutil.which(override)
+        if found:
+            return found
+        return None
     return shutil.which("rg")
 
 
@@ -87,20 +109,32 @@ def scan_files(root: Path) -> list[Path]:
     return [path for path, _fm, _body in iter_okf(root)]
 
 
+Candidate = tuple[Path, dict | None, str | None]
+
+
+def _scan_candidates(root: Path) -> list[Candidate]:
+    """One parse per file. iter_okf already parsed each file to yield it; the
+    old code threw that away and parsed again in search() (measured 2.0x).
+    Unparsable files are skipped, matching the rg path."""
+    return [(p, fm, body) for p, fm, body in iter_okf(root, collect_errors=[])]
+
+
 def candidate_files(
     root: Path,
     terms: list[str],
     *,
     use_rg: bool | None = None,
-) -> tuple[list[Path], str]:
+) -> tuple[list[Candidate], str]:
+    """(path, fm, body) candidates. fm/body are None on the rg path (parsed
+    lazily by the caller) and already parsed on the scan path."""
     if use_rg is False:
-        return scan_files(root), "scan"
+        return _scan_candidates(root), "scan"
     if use_rg is None and not find_rg():
-        return scan_files(root), "scan"
+        return _scan_candidates(root), "scan"
     hits = rg_list_files(root, terms)
     if hits is None:
-        return scan_files(root), "scan"
-    return hits, "rg"
+        return _scan_candidates(root), "scan"
+    return [(p, None, None) for p in hits], "rg"
 
 
 def _rel(root: Path, path: Path) -> str:
@@ -147,22 +181,25 @@ def search(
     files, engine = candidate_files(root, terms, use_rg=use_rg)
     results: list[dict[str, Any]] = []
 
-    for path in files:
-        try:
-            fm, body = parse_okf(path)
-        except Exception:
-            continue
+    for path, fm, body in files:
+        if fm is None:
+            try:
+                fm, body = parse_okf(path)
+            except Exception:
+                continue
         ctype = str(fm.get("type") or "")
         if ctype not in OWNED_TYPES:
             continue
         if type_filter and ctype.lower() not in type_filter:
             continue
 
-        hay_title = str(fm.get("title") or path.stem).lower()
+        # Filenames are not content: the stem never enters the haystack, so
+        # scan and rg agree on every hit. Display still falls back to the stem.
+        hay_title = str(fm.get("title") or "").lower()
         hay_desc = str(fm.get("description") or "").lower()
         hay_tags = " ".join(str(t) for t in (fm.get("tags") or [])).lower()
         hay_body = (body or "").lower()
-        hay_id = str(fm.get("id") or path.stem).lower()
+        hay_id = str(fm.get("id") or "").lower()
         full = f"{hay_title}\n{hay_desc}\n{hay_tags}\n{hay_body}\n{hay_id}"
 
         score = 0
