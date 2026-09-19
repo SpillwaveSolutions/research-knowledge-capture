@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-VERSION = "0.2.7"
+VERSION = "0.2.8"
 NAME = "research-knowledge-capture"
 
 

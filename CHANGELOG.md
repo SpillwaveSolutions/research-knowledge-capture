@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.8 — 2026-09-19
+
+Retrieval-ladder patch: parse once, engine parity, fail-closed rg override, rg test coverage. Closes [#30](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/30), [#31](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/31), [#32](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/32) via [#33](https://github.com/SpillwaveSolutions/research-knowledge-capture/pull/33).
 
 - `rkc_search.py` scan path parses each file once (closes [#30](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/30)). `iter_okf` already parsed every file to yield it; `search()` parsed each again (measured 2.0×, ~2.9 s vs 99 ms for rg on a 3k-file tree). The scan rung is what hosts without ripgrep run.
 - `rkc_validate.py` parses the tree once per run; `validate()` and `spine_issues()` share it (`load_tree`).
