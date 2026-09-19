@@ -30,12 +30,19 @@ def derive_epistemic(fm: dict, evidence_by_claim: dict) -> str:
     return "asserted"
 
 
-def validate(root: Path) -> list[str]:
+def load_tree(root: Path) -> tuple[list, list[str]]:
+    """Parse the research tree once. validate() and spine_issues() both take
+    the result so a run parses each file one time, not two."""
+    parse_errors: list[str] = []
+    files = list(iter_okf(root, collect_errors=parse_errors))
+    return files, parse_errors
+
+
+def validate(root: Path, *, tree: tuple[list, list[str]] | None = None) -> list[str]:
     errors = []
     nodes = {}
     evidence_by_claim = {}
-    parse_errors: list[str] = []
-    files = list(iter_okf(root, collect_errors=parse_errors))
+    files, parse_errors = tree if tree is not None else load_tree(root)
     errors.extend(parse_errors)
     for path, fm, body in files:
         t = fm.get("type")
@@ -86,10 +93,9 @@ def validate(root: Path) -> list[str]:
     return errors
 
 
-def spine_issues(root: Path) -> list[str]:
+def spine_issues(root: Path, *, tree: tuple[list, list[str]] | None = None) -> list[str]:
     """Subjects without incoming has_subject, tasks without incoming has_task."""
-    parse_errors: list[str] = []
-    files = list(iter_okf(root, collect_errors=parse_errors))
+    files, _parse_errors = tree if tree is not None else load_tree(root)
     has_subject_targets: set[str] = set()
     has_task_targets: set[str] = set()
     subjects = []
@@ -130,8 +136,9 @@ def main():
     args = ap.parse_args()
     root = knowledge_root(args.root)
     try:
-        errs = validate(root)
-        warnings = spine_issues(root)
+        tree = load_tree(root)
+        errs = validate(root, tree=tree)
+        warnings = spine_issues(root, tree=tree)
     except ParseError as e:
         print("RKC validate FAILED")
         print(" -", e)
