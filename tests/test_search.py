@@ -218,6 +218,28 @@ class SearchEngineParityTests(unittest.TestCase):
         self.assertEqual([h["path"] for h in accel], [h["path"] for h in scan])
         self.assertEqual([h["score"] for h in accel], [h["score"] for h in scan])
 
+    def test_symlinked_root_agrees_across_engines(self):
+        # Issue #35. rg prints resolved paths. An unresolved root did not
+        # match them, so _rel fell through to a full absolute path and the
+        # two engines disagreed. /var -> /private/var on macOS does this to
+        # every tempfile root; a symlinked checkout or bind mount is the same
+        # shape on Linux, which is why CI never saw it.
+        real = Path(tempfile.mkdtemp())
+        d = real / "research" / "findings"
+        d.mkdir(parents=True)
+        (d / "hit.md").write_text(
+            "---\ntype: Finding\nid: finding.other.003\ntitle: Zebra crossing\nstatus: draft\n---\n\nplain\n",
+            encoding="utf-8",
+        )
+        link = Path(tempfile.mkdtemp()) / "via-symlink"
+        link.symlink_to(real, target_is_directory=True)
+
+        scan, _ = search(link, "zebra", use_rg=False)
+        accel, engine = search(link, "zebra", use_rg=True)
+        self.assertEqual(engine, "rg")
+        self.assertEqual([h["path"] for h in scan], ["/research/findings/hit.md"])
+        self.assertEqual([h["path"] for h in accel], [h["path"] for h in scan])
+
     def test_scan_parses_each_file_once(self):
         import rkc_common
         import rkc_search

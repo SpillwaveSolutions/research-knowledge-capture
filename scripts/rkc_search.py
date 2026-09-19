@@ -138,10 +138,16 @@ def candidate_files(
 
 
 def _rel(root: Path, path: Path) -> str:
-    try:
-        return "/" + path.relative_to(root).as_posix()
-    except ValueError:
-        return "/" + path.as_posix()
+    """Root-relative display path.
+
+    `search()` resolves the root and both engines derive their paths from it,
+    so this always succeeds. It used to catch ValueError and return the full
+    absolute path instead: on a symlinked root the hits rg prints are resolved,
+    an unresolved root does not match them, and the two engines then reported
+    different paths for the same file. Returning a wrong path is worse than
+    raising, because the caller cannot tell it apart from a real one.
+    """
+    return "/" + path.relative_to(root).as_posix()
 
 
 def _snippet(body: str, terms: list[str], width: int = 160) -> str:
@@ -176,6 +182,12 @@ def search(
     terms = tokenize(query)
     if not terms:
         return [], "scan"
+
+    # rg prints resolved paths, so an unresolved root makes the rg and scan
+    # engines disagree about every path (issue #35). /var is a symlink to
+    # /private/var on macOS; a symlinked checkout or a bind mount does the
+    # same. Resolve once here and both engines derive from the same root.
+    root = root.resolve()
 
     type_filter = {t.lower() for t in (types or []) if t}
     files, engine = candidate_files(root, terms, use_rg=use_rg)
