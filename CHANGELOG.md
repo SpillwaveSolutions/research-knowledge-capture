@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.9 — 2026-09-19
+
+Symlinked-root patch. Closes [#35](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/35) via [#37](https://github.com/SpillwaveSolutions/research-knowledge-capture/pull/37).
+
+- **Engine parity holds on a symlinked root** ([#35](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/35)). `rg` prints resolved paths, and `search()` passed the caller's root through unresolved, so `_rel` could not make the rg hits relative. It fell into `except ValueError` and returned the full absolute path with a doubled leading slash, and the two engines then reported different paths for the same file. That is the parity contract 0.2.8 shipped to guarantee, and the caller could not tell the wrong path from a real one. The root is the cause, not `_rel`: both engines derive their paths from it, so `search()` resolves it once. One syscall per call, not one per hit.
+- `_rel` no longer catches `ValueError`. The old branch did not recover, it returned a wrong value.
+- Not macOS-only. `/var` is a symlink to `/private/var` there, so every `tempfile` root reproduces it. A symlinked checkout or a container bind mount is the same shape on Linux. CI has neither, which is why it shipped.
+- New `tools/ci-local.sh` mirrors every step of `.github/workflows/ci.yml`. Its first check parses every workflow and fails when the glob finds none. PKC #82 was an unparseable `ci.yml` that failed at startup with zero jobs, and a workflow cannot check itself.
+- Tests: `test_symlinked_root_agrees_across_engines` searches through a real symlink.
+
 ## 0.2.8 — 2026-09-19
 
 Retrieval-ladder patch: parse once, engine parity, fail-closed rg override, rg test coverage. Closes [#30](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/30), [#31](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/31), [#32](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/32) via [#33](https://github.com/SpillwaveSolutions/research-knowledge-capture/pull/33).
