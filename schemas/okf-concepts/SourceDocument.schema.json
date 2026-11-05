@@ -84,26 +84,10 @@
     },
     "resources": {
       "type": "array",
-      "description": "URLs the source cites, in first-seen order. rkc_ingest writes it. ref is the entry number in a numbered source list.",
+      "description": "URLs the source cites, in first-seen order. rkc_ingest writes it. The body section Resources adds the title and the ref number from a numbered source list.",
       "items": {
-        "type": "object",
-        "required": [
-          "url"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "url": {
-            "type": "string",
-            "minLength": 1
-          },
-          "title": {
-            "type": "string"
-          },
-          "ref": {
-            "type": "integer",
-            "minimum": 1
-          }
-        }
+        "type": "string",
+        "minLength": 1
       }
     }
   },

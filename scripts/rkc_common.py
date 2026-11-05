@@ -163,7 +163,7 @@ def _mini_yaml(raw: str) -> dict:
         if stripped.startswith("- "):
             rest = stripped[2:]
             item: dict | str
-            if ":" in rest:
+            if re.match(r"^[\w.-]+:(\s|$)", rest):
                 k, v = rest.split(":", 1)
                 item = {k.strip(): _scalar(v)} if v.strip() else {k.strip(): {}}
             else:
@@ -404,6 +404,10 @@ def dump_frontmatter(fm: dict) -> str:
                         prefix = "  - " if first else "    "
                         lines.append(f"{prefix}{ik}: {yaml_scalar(iv)}")
                         first = False
+            elif any(c in str(x) for x in v for c in ",?:"):
+                # inline [a, b] breaks on these: a comma splits it (PyYAML and okf-graph), ? and : confuse PyYAML flow
+                lines.append(f"{k}:")
+                lines.extend(f"  - {yaml_scalar(x)}" for x in v)
             else:
                 inner = ", ".join(yaml_scalar(x) for x in v)
                 lines.append(f"{k}: [{inner}]")
