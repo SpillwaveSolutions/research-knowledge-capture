@@ -111,6 +111,18 @@ def extract_resources(text: str) -> list[dict]:
     return list(seen.values())
 
 
+def resources_section(resources: list[dict]) -> str:
+    """Body list of the resources: [ref] title, then the URL."""
+    if not resources:
+        return ""
+    rows = []
+    for r in resources:
+        ref = f"[{r['ref']}] " if "ref" in r else ""
+        title = f"{r['title']}: " if r.get("title") else ""
+        rows.append(f"- {ref}{title}<{r['url']}>")
+    return "\n## Resources\n\n" + "\n".join(rows) + "\n"
+
+
 def source_title(src: Path) -> str:
     if src.stem.lower() in {"index", "readme"} and src.parent.name not in {"", ".", "/"}:
         return f"{src.parent.name}/{src.name}"
@@ -345,6 +357,7 @@ def ingest_file(
     sid, spath, _created = ensure_subject(knowledge, subject, subj_title, dry_run=dry_run)
     subject_id = subject_id or sid
     if not dry_run:
+        resources = extract_resources(src.read_text(encoding="utf-8", errors="replace"))
         src_md = knowledge / "research" / "sources" / f"{source_id}.md"
         write_okf(
             src_md,
@@ -365,9 +378,10 @@ def ingest_file(
                 "ingest_version": str(extractor_version),
                 "ingest_key": ingest_key,
                 "prompt_hash": prompt_hash or "",
-                "resources": extract_resources(src.read_text(encoding="utf-8", errors="replace")),
+                # ponytail: URL strings only. okf-graph's frontmatter parser reads list-of-maps under links: alone
+                "resources": [r["url"] for r in resources],
             },
-            f"Archived dump `{src.name}`.\n",
+            f"Archived dump `{src.name}`.\n" + resources_section(resources),
         )
         task_md = knowledge / "research" / "tasks" / f"{task_id}.md"
         write_okf(

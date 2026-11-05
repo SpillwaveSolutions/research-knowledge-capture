@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.11 — 2026-11-05
+
+Resources fix for okf-graph.
+
+- **`resources` is a list of URL strings.** 0.2.10 wrote a list of maps (`url`, `title`, `ref`). The `okf-graph.py` frontmatter parser reads a list of maps only under `links:`. Under `resources:` it read each item as a string, so `okf-graph.py validate` failed against the 0.2.10 schema. It also read the indented `title:` lines as top-level keys, so the graph showed the last resource title as the source title.
+- The title and the `ref` number move to a `## Resources` section in the `SourceDocument` body, one line per resource: `- [12] Title: <url>`.
+- The schema item type changes from object to string.
+- `dump_frontmatter` writes a list of strings as a block list when an item contains `,`, `?`, or `:`. An inline `[a, b]` list split a comma URL in PyYAML and in okf-graph, and PyYAML failed on `?` in a flow list.
+- `_mini_yaml` reads a list item as a map only for a `key: value` item. It read `- https://x` as the map `{https: //x}`.
+- Tests: comma URLs round-trip through PyYAML and `_mini_yaml`.
+
 ## 0.2.10 — 2026-11-05
 
 SourceDocument resources patch via [#39](https://github.com/SpillwaveSolutions/research-knowledge-capture/pull/39).

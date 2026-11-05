@@ -199,13 +199,21 @@ class IngestTests(unittest.TestCase):
         self.assertEqual(got[0], {"url": "https://beads.gascity.com/architecture", "title": "Architecture", "ref": 2})
         self.assertEqual(got[1], {"url": "https://github.com/gastownhall/beads", "title": "Repo _ main -- v1", "ref": 1})
         self.assertEqual(extract_resources("no links here"), [])
+        import rkc_common
+        urls = ["https://a.example/x,y", "https://b.example/item?id=1"]
+        raw = rkc_common.dump_frontmatter({"type": "SourceDocument", "title": "t", "resources": urls})
+        self.assertEqual(rkc_common._mini_yaml(raw)["resources"], urls)
+        if rkc_common.yaml:
+            self.assertEqual(rkc_common.yaml.safe_load(raw)["resources"], urls)
         tmp = Path(tempfile.mkdtemp())
         inbox = tmp / "dump.md"
         inbox.write_text(text, encoding="utf-8")
         k = tmp / "knowledge"
         a = ingest_file(inbox, k, "grok", "loop-policy")
-        fm, _ = parse_okf(k / "research" / "sources" / f"{a['source_id']}.md")
-        self.assertEqual(fm["resources"], got)
+        fm, body = parse_okf(k / "research" / "sources" / f"{a['source_id']}.md")
+        self.assertEqual(fm["resources"], [r["url"] for r in got])
+        self.assertIn("- [2] Architecture: <https://beads.gascity.com/architecture>", body)
+        self.assertIn("- [1] Repo _ main -- v1: <https://github.com/gastownhall/beads>", body)
         shutil.rmtree(tmp)
 
 
