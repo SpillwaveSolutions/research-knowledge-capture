@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **`SourceDocument` lists its resources.** `rkc_ingest.py` writes a `resources` list into each new `SourceDocument`. It holds every URL that the dump cites, in first-seen order: Markdown links, bare URLs, and numbered source lists. Each item has `url`, the link `title` when one exists, and `ref` when a numbered source list gives the entry a number. A `[12]` marker in the text then resolves to the item with `ref: 12`. A dump with no URLs gets `resources: []`.
+- The schema adds `resources` as an optional array, so old bundles stay valid. Ingest writes the field only on a new `SourceDocument`. An idempotent re-ingest does not backfill it.
+- Titles collapse a run of three or more dashes to `--`, because `---` in a frontmatter value breaks parsers that split on `---`.
+- Tests: `test_resources_listed_on_source`.
+
 ## 0.2.9 — 2026-09-19
 
 Symlinked-root patch. Closes [#35](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/35) via [#37](https://github.com/SpillwaveSolutions/research-knowledge-capture/pull/37).

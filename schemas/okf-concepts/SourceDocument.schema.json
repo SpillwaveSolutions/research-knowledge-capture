@@ -81,6 +81,30 @@
     },
     "ingest_version": {
       "type": "string"
+    },
+    "resources": {
+      "type": "array",
+      "description": "URLs the source cites, in first-seen order. rkc_ingest writes it. ref is the entry number in a numbered source list.",
+      "items": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
     }
   },
   "additionalProperties": true

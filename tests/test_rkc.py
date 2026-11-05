@@ -185,6 +185,29 @@ class IngestTests(unittest.TestCase):
         self.assertTrue(asset.exists())
         shutil.rmtree(tmp)
 
+    def test_resources_listed_on_source(self):
+        from rkc_common import parse_okf
+        from rkc_ingest import extract_resources
+        text = (
+            "Beads uses Dolt ([Architecture](https://beads.gascity.com/architecture)).\n"
+            "See https://github.com/gastownhall/beads. Also [1].\n\n## Sources\n\n"
+            "1.  [Repo \\_ main --- v1](https://github.com/gastownhall/beads)\n"
+            "2.  [Arch again](https://beads.gascity.com/architecture)\n"
+        )
+        got = extract_resources(text)
+        self.assertEqual([r["url"] for r in got], ["https://beads.gascity.com/architecture", "https://github.com/gastownhall/beads"])
+        self.assertEqual(got[0], {"url": "https://beads.gascity.com/architecture", "title": "Architecture", "ref": 2})
+        self.assertEqual(got[1], {"url": "https://github.com/gastownhall/beads", "title": "Repo _ main -- v1", "ref": 1})
+        self.assertEqual(extract_resources("no links here"), [])
+        tmp = Path(tempfile.mkdtemp())
+        inbox = tmp / "dump.md"
+        inbox.write_text(text, encoding="utf-8")
+        k = tmp / "knowledge"
+        a = ingest_file(inbox, k, "grok", "loop-policy")
+        fm, _ = parse_okf(k / "research" / "sources" / f"{a['source_id']}.md")
+        self.assertEqual(fm["resources"], got)
+        shutil.rmtree(tmp)
+
 
 if __name__ == "__main__":
     unittest.main()

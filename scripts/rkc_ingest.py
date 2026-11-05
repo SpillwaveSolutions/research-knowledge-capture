@@ -76,6 +76,41 @@ def empty_reason(src: Path, min_source_bytes: int = MIN_SOURCE_BYTES) -> str | N
     return None
 
 
+MD_LINK = re.compile(r"\[((?:[^\[\]]|\[[^\]]*\])*)\]\((https?://[^)\s]+)\)")
+BARE_URL = re.compile(r"https?://[^\s<>()\[\]`'\"*]+")
+REF_LINE = re.compile(r"^\s*(\d+)\.\s+\[")
+
+
+def _clean_title(t: str) -> str:
+    t = re.sub(r"\\(.)", r"\1", t).replace("**", "").replace("`", "")
+    # ponytail: "---" in a frontmatter value breaks split("---") parsers (account-management#6 family)
+    return re.sub(r"-{3,}", "--", " ".join(t.split()))
+
+
+def extract_resources(text: str) -> list[dict]:
+    """URLs the source cites, first-seen order. ref = number in a numbered source list."""
+    seen: dict[str, dict] = {}
+
+    def add(url: str, title: str, ref: int | None) -> None:
+        url = url.rstrip(".,;:")
+        r = seen.setdefault(url, {"url": url})
+        if title and not r.get("title"):
+            r["title"] = title
+        if ref is not None and "ref" not in r:
+            r["ref"] = ref
+
+    for line in source_payload(text).splitlines():
+        num = REF_LINE.match(line)
+        spans = []
+        for i, m in enumerate(MD_LINK.finditer(line)):
+            spans.append(m.span())
+            add(m.group(2), _clean_title(m.group(1)), int(num.group(1)) if num and i == 0 else None)
+        for m in BARE_URL.finditer(line):
+            if not any(a <= m.start() < b for a, b in spans):
+                add(m.group(0), "", None)
+    return list(seen.values())
+
+
 def source_title(src: Path) -> str:
     if src.stem.lower() in {"index", "readme"} and src.parent.name not in {"", ".", "/"}:
         return f"{src.parent.name}/{src.name}"
@@ -330,6 +365,7 @@ def ingest_file(
                 "ingest_version": str(extractor_version),
                 "ingest_key": ingest_key,
                 "prompt_hash": prompt_hash or "",
+                "resources": extract_resources(src.read_text(encoding="utf-8", errors="replace")),
             },
             f"Archived dump `{src.name}`.\n",
         )
