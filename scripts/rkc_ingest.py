@@ -123,6 +123,37 @@ def resources_section(resources: list[dict]) -> str:
     return "\n## Resources\n\n" + "\n".join(rows) + "\n"
 
 
+def backfill_resources(knowledge: Path, subject: str | None = None, *, dry_run: bool = False) -> dict:
+    """Add `resources` to SourceDocuments written before 0.2.10. Ingest never backfills.
+
+    Reads each source's archived asset. Skips sources that already have the key,
+    protected sources, and sources whose asset is missing. subject=None means all.
+    """
+    from rkc_common import is_protected, parse_okf, resolve_asset
+
+    out = {"updated": [], "skipped": []}
+    prefix = f"source.{subject}." if subject else ""
+    for p, fm, _body in iter_type(knowledge, "SourceDocument"):
+        if not str(fm.get("id", "")).startswith(prefix):
+            continue
+        if "resources" in fm:
+            continue
+        if is_protected(fm):
+            out["skipped"].append({"id": fm.get("id"), "why": "protected"})
+            continue
+        asset = resolve_asset(knowledge, fm.get("asset_path", ""))
+        if not asset.is_file():
+            out["skipped"].append({"id": fm.get("id"), "why": "asset missing"})
+            continue
+        resources = extract_resources(asset.read_text(encoding="utf-8", errors="replace"))
+        if not dry_run:
+            fm, body = parse_okf(p)
+            fm["resources"] = [r["url"] for r in resources]
+            write_okf(p, fm, body.rstrip("\n") + "\n" + resources_section(resources))
+        out["updated"].append({"id": fm.get("id"), "resources": len(resources)})
+    return out
+
+
 def source_title(src: Path) -> str:
     if src.stem.lower() in {"index", "readme"} and src.parent.name not in {"", ".", "/"}:
         return f"{src.parent.name}/{src.name}"
@@ -481,7 +512,7 @@ def _run_extract(
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("inbox", type=Path)
+    ap.add_argument("inbox", type=Path, nargs="?")
     ap.add_argument("--knowledge", type=Path, default=plugin_root() / "sample-knowledge")
     ap.add_argument("--vendor", default="grok", help="Free text. Convention: " + ", ".join(VENDOR_CONVENTION))
     ap.add_argument("--subject", default="unsorted")
@@ -503,7 +534,18 @@ def main():
     ap.add_argument("--max-candidates", type=int, default=400)
     ap.add_argument("--force-large", action="store_true")
     ap.add_argument("--errors-file", type=Path, default=None)
+    ap.add_argument(
+        "--backfill-resources",
+        action="store_true",
+        help="Add resources to existing SourceDocuments of --subject ('*' for all) and exit. No inbox.",
+    )
     args = ap.parse_args()
+    if args.backfill_resources:
+        subject = None if args.subject == "*" else slug(args.subject)
+        print(json.dumps(backfill_resources(args.knowledge, subject, dry_run=args.dry_run), indent=2))
+        return
+    if args.inbox is None:
+        ap.error("inbox is required unless --backfill-resources is set")
     prompt_hash = args.prompt_hash
     if args.prompt_file:
         prompt_hash = hashlib.sha256(args.prompt_file.read_bytes()).hexdigest()

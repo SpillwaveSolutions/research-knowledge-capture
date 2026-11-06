@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.12 (2026-11-06)
+
+Backfill for SourceDocument resources.
+
+- **`rkc_ingest.py --backfill-resources`** adds the `resources` list and the `## Resources` body section to each `SourceDocument` that does not have them. It reads the archived asset with the same `extract_resources` that ingest uses. An idempotent re-ingest does not backfill, so sources ingested before 0.2.10 needed this path.
+- `--subject <slug>` limits the backfill to one subject. `--subject '*'` backfills every subject. `--dry-run` reports the counts and writes nothing.
+- The backfill skips protected sources (`reviewed`, `accepted`), sources whose asset is missing, and sources that already have the key. A second run changes nothing.
+- The `inbox` argument is optional only when `--backfill-resources` is set.
+- Tests: `test_backfill_resources_on_old_source`.
+
 ## 0.2.11 — 2026-11-05
 
 Resources fix for okf-graph.
