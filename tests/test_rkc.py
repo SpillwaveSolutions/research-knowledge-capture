@@ -216,6 +216,31 @@ class IngestTests(unittest.TestCase):
         self.assertIn("- [1] Repo _ main -- v1: <https://github.com/gastownhall/beads>", body)
         shutil.rmtree(tmp)
 
+    def test_backfill_resources_on_old_source(self):
+        from rkc_common import parse_okf, write_okf
+        from rkc_ingest import backfill_resources
+        tmp = Path(tempfile.mkdtemp())
+        inbox = tmp / "dump.md"
+        inbox.write_text("See [Arch](https://a.example/arch) and https://b.example/x.\n", encoding="utf-8")
+        k = tmp / "knowledge"
+        a = ingest_file(inbox, k, "grok", "loop-policy")
+        other_dump = tmp / "other.md"
+        other_dump.write_text("https://c.example\n", encoding="utf-8")
+        other = ingest_file(other_dump, k, "grok", "elsewhere")
+        for sid in (a["source_id"], other["source_id"]):  # simulate pre-0.2.10 sources
+            p = k / "research" / "sources" / f"{sid}.md"
+            fm, _ = parse_okf(p)
+            fm.pop("resources")
+            write_okf(p, fm, "Archived dump.\n")
+        got = backfill_resources(k, "loop-policy")
+        self.assertEqual([u["id"] for u in got["updated"]], [a["source_id"]])
+        fm, body = parse_okf(k / "research" / "sources" / f"{a['source_id']}.md")
+        self.assertEqual(fm["resources"], ["https://a.example/arch", "https://b.example/x"])
+        self.assertIn("- Arch: <https://a.example/arch>", body)
+        self.assertEqual(backfill_resources(k, "loop-policy")["updated"], [])  # idempotent
+        self.assertEqual(len(backfill_resources(k, None)["updated"]), 1)  # the other subject
+        shutil.rmtree(tmp)
+
 
 if __name__ == "__main__":
     unittest.main()

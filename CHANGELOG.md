@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.2.11 — 2026-11-05
+## 0.2.12 (2026-11-06)
+
+Backfill for SourceDocument resources.
+
+- **`rkc_ingest.py --backfill-resources`** adds the `resources` list and the `## Resources` body section to each `SourceDocument` that does not have them. It reads the archived asset with the same `extract_resources` that ingest uses. An idempotent re-ingest does not backfill, so sources ingested before 0.2.10 needed this path.
+- `--subject <slug>` limits the backfill to one subject. `--subject '*'` backfills every subject. `--dry-run` reports the counts and writes nothing.
+- The backfill skips protected sources (`reviewed`, `accepted`), sources whose asset is missing, and sources that already have the key. A second run changes nothing.
+- The `inbox` argument is optional only when `--backfill-resources` is set.
+- Tests: `test_backfill_resources_on_old_source`.
+
+## 0.2.11, 2026-11-05
 
 Resources fix for okf-graph.
 
@@ -11,7 +21,7 @@ Resources fix for okf-graph.
 - `_mini_yaml` reads a list item as a map only for a `key: value` item. It read `- https://x` as the map `{https: //x}`.
 - Tests: comma URLs round-trip through PyYAML and `_mini_yaml`.
 
-## 0.2.10 — 2026-11-05
+## 0.2.10, 2026-11-05
 
 SourceDocument resources patch via [#39](https://github.com/SpillwaveSolutions/research-knowledge-capture/pull/39).
 
@@ -20,7 +30,7 @@ SourceDocument resources patch via [#39](https://github.com/SpillwaveSolutions/r
 - Titles collapse a run of three or more dashes to `--`, because `---` in a frontmatter value breaks parsers that split on `---`.
 - Tests: `test_resources_listed_on_source`.
 
-## 0.2.9 — 2026-09-19
+## 0.2.9, 2026-09-19
 
 Symlinked-root patch. Closes [#35](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/35) via [#37](https://github.com/SpillwaveSolutions/research-knowledge-capture/pull/37).
 
@@ -30,52 +40,52 @@ Symlinked-root patch. Closes [#35](https://github.com/SpillwaveSolutions/researc
 - New `tools/ci-local.sh` mirrors every step of `.github/workflows/ci.yml`. Its first check parses every workflow and fails when the glob finds none. PKC #82 was an unparseable `ci.yml` that failed at startup with zero jobs, and a workflow cannot check itself.
 - Tests: `test_symlinked_root_agrees_across_engines` searches through a real symlink.
 
-## 0.2.8 — 2026-09-19
+## 0.2.8, 2026-09-19
 
 Retrieval-ladder patch: parse once, engine parity, fail-closed rg override, rg test coverage. Closes [#30](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/30), [#31](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/31), [#32](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/32) via [#33](https://github.com/SpillwaveSolutions/research-knowledge-capture/pull/33).
 
 - `rkc_search.py` scan path parses each file once (closes [#30](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/30)). `iter_okf` already parsed every file to yield it; `search()` parsed each again (measured 2.0×, ~2.9 s vs 99 ms for rg on a 3k-file tree). The scan rung is what hosts without ripgrep run.
 - `rkc_validate.py` parses the tree once per run; `validate()` and `spine_issues()` share it (`load_tree`).
 - Search parity ([#31](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/31)): the filename stem no longer enters the haystack (`hay_title`, `hay_id`). A titleless node whose filename matched the query was found by `scan` but invisible to the `rg` prefilter. Filenames are not content; display still falls back to the stem.
-- `find_rg()` ([#32](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/32)) honours `RKC_RG_PATH` / `OKF_RG_PATH` / `SECOND_BRAIN_RG_PATH` and fails closed when the override is unusable — the same rule as research-graph and PKC, so one env var means one thing across plugins.
+- `find_rg()` ([#32](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/32)) honours `RKC_RG_PATH` / `OKF_RG_PATH` / `SECOND_BRAIN_RG_PATH` and fails closed when the override is unusable, the same rule as research-graph and PKC, so one env var means one thing across plugins.
 - Scan search skips unparsable files instead of aborting, matching the rg path.
 - Tests: `tests/fixtures/fake_rg.py` (ported from PKC) and rg-vs-scan parity tests; the rg engine had no coverage.
 
-## 0.2.7 — 2026-09-12
+## 0.2.7, 2026-09-12
 
 Query-time retrieval, PKC/SAC/DEKC parity.
 
-- `agents/research-retriever.md` — isolated retriever. Scores and deep-walks off the parent. Returns a summary card only.
+- `agents/research-retriever.md`, isolated retriever. Scores and deep-walks off the parent. Returns a summary card only.
 - `/research-retrieve` skill + command. Parent spawns the retriever; do not pack inline for Q&A.
-- `rkc_pack.py --summary` — compact card-friendly pack (seed, hops/nodes/tokens, spine counts, lead nodes, gaps). `--tiny` is hops=1 / max_nodes=8. `--max-tokens` fail-closed (default 32000). Seed may be an id, path, or stem.
-- `rkc_search.py` + `/research-search` — git-native `rg` → scan ladder. AND terms, type filter, limit 5, `--json`. No Chroma, BM25, or Kuzu. Layer 1 may feed seeds later.
+- `rkc_pack.py --summary`, compact card-friendly pack (seed, hops/nodes/tokens, spine counts, lead nodes, gaps). `--tiny` is hops=1 / max_nodes=8. `--max-tokens` fail-closed (default 32000). Seed may be an id, path, or stem.
+- `rkc_search.py` + `/research-search`, git-native `rg` → scan ladder. AND terms, type filter, limit 5, `--json`. No Chroma, BM25, or Kuzu. Layer 1 may feed seeds later.
 - `research-capturer` delegates Q&A retrieval to `research-retriever`.
 
-## 0.2.6 — 2026-08-25
+## 0.2.6, 2026-08-25
 
 - `--dry-run` does not create `research/catalogs/ingest-index.json` or its parent directories. Closes [#25](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/25).
 - Empty, whitespace-only, and frontmatter-only sources are skipped and reported. `--min-source-bytes` defaults to 1. Closes [#26](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/26).
 
-## 0.2.5 — 2026-08-25
+## 0.2.5, 2026-08-25
 
 - Subject title is derived from the `--subject` slug (or `--subject-title`), not the first source filename. `rkc_spine.py` uses the same rule when it creates a missing Subject. Closes [#23](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/23).
 
-## 0.2.4 — 2026-08-25
+## 0.2.4, 2026-08-25
 
 - Intra-run claim merge no longer calls `add_link` on a node whose path is still `None`. A second file that repeats a claim from the first no longer crashes extract with `'NoneType' object has no attribute 'read_text'`.
 
-## 0.2.3 — 2026-08-25
+## 0.2.3, 2026-08-25
 
 - Quote date-like YAML scalars. `as_of` / `timestamp` / `captured_at` stay strings through parse and write. Closes [#16](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/16) and [#17](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/17).
 - `parse_okf` wraps `yaml.safe_load` in `ParseError` that names the file. `rkc_validate.py` reports it and continues. Closes [#6](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/6).
 - Default `--extractor-version` to `EXTRACTOR_VERSION`. Same bytes under another version are reported, not duplicated, unless `--allow-reextract`. Idempotent `--extract` skips the extractor. Closes [#18](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/18).
 - `index.md` / `README.md` titles become `parent/filename`. Closes [#19](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/19).
 
-## 0.2.2 — 2026-08-24
+## 0.2.2, 2026-08-24
 
 - `rkc_spine.py` / `/research-spine` repairs Area → Subject → Task on a tree ingested by 0.2.0. `--link-tasks`, `--list-subjects`, `--area-map`. Idempotent.
 
-## 0.2.1 — 2026-08-24
+## 0.2.1, 2026-08-24
 
 
 Bulk-ingest hardening from the first 2,997-file corpus ([#13](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/13)).
@@ -101,25 +111,25 @@ Minor:
 - Per-file progress on stderr, ingest-key resume, `--errors-file` (does not abort the run). Intra-tree `--workers` is not added: concurrent writers race, and `pkill -f` orphans multiprocessing children. Shard by Subject instead. [#11](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/11)
 - Vendor is free text. Convention now includes `perplexity` and `unknown`. [#12](https://github.com/SpillwaveSolutions/research-knowledge-capture/issues/12)
 
-## 0.2.0 — 2026-08-22
+## 0.2.0, 2026-08-22
 
 
 Phase 2 extractor.
 
-- `rkc_segment.py` — global line/char locators, heading/paragraph packing.
-- `rkc_extract.py` — heuristic extract + fail-closed overlay JSON.
+- `rkc_segment.py`, global line/char locators, heading/paragraph packing.
+- `rkc_extract.py`, heuristic extract + fail-closed overlay JSON.
 - `claim_key` merge attaches Evidence to existing Claims; near-match `same_as`; `contradicts` as a new draft.
 - Accepted / reviewed / verified nodes are never auto-superseded.
 - Required PR summary under `research/catalogs/pr-summaries/` (not an OKF type).
 - Ingest key is `sha256(bytes|prompt_hash|extractor_version)`. `--extract` flag.
 - `/research-extract` skill + command. ADR 007.
 
-## 0.1.0 — 2026-08-22
+## 0.1.0, 2026-08-22
 
-Phase 0–3 bootstrap.
+Phase 0, 3 bootstrap.
 
 - Eight nouns, twelve rels, JSON schemas, registry.
 - Five-host packaging (Claude Code, Grok Build, Codex, Cursor, Agent Plugins 1.0).
 - `/research-ingest`, `/research-pack`, `/research-validate`.
 - Northstar / Lumenfield fiction sample + eval fixtures (spine, claim_key, quote verify, unknown rel).
-- ADRs 001–006. Compact PRD under `docs/prd/`.
+- ADRs 001, 006. Compact PRD under `docs/prd/`.
