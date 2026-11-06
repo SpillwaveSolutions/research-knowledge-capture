@@ -241,6 +241,31 @@ class IngestTests(unittest.TestCase):
         self.assertEqual(len(backfill_resources(k, None)["updated"]), 1)  # the other subject
         shutil.rmtree(tmp)
 
+    def test_set_resources_from_a_looked_up_list(self):
+        from rkc_common import parse_okf
+        from rkc_ingest import read_resources_file, set_resources
+        tmp = Path(tempfile.mkdtemp())
+        dump = tmp / "dump.md"
+        dump.write_text("Cites Lost in the Middle and RULER by name only.\n", encoding="utf-8")
+        k = tmp / "knowledge"
+        a = ingest_file(dump, k, "claude", "loop-policy")
+        listed = tmp / "urls.txt"
+        listed.write_text(
+            "- Lost in the Middle, Liu, 2024: https://aclanthology.org/2024.tacl-1.9/\n"
+            "- RULER, Hsieh, 2024: https://openreview.net/forum?id=kIoBbc76Sy\n"
+            "# Not found\n- A blog: https://not.example/skip\n",
+            encoding="utf-8",
+        )
+        found = read_resources_file(listed)
+        self.assertEqual([r["url"] for r in found], ["https://aclanthology.org/2024.tacl-1.9/", "https://openreview.net/forum?id=kIoBbc76Sy"])
+        got = set_resources(k, a["sha256"], found)
+        self.assertEqual([u["id"] for u in got["updated"]], [a["source_id"]])
+        fm, body = parse_okf(k / "research" / "sources" / f"{a['source_id']}.md")
+        self.assertEqual(fm["resources"], [r["url"] for r in found])
+        self.assertIn("- Lost in the Middle, Liu, 2024: <https://aclanthology.org/2024.tacl-1.9/>", body)
+        self.assertEqual(set_resources(k, a["sha256"], found)["skipped"][0]["why"], "already has resources")
+        shutil.rmtree(tmp)
+
 
 if __name__ == "__main__":
     unittest.main()

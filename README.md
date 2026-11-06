@@ -2,7 +2,7 @@
 
 Layer 0 ContentPack for a research second brain. OKF Markdown + YAML is the source of truth. Agent Brain is a disposable index — see [`research-graph`](https://github.com/SpillwaveSolutions/research-graph).
 
-**Version:** 0.2.12. `rkc_ingest.py --backfill-resources` adds `resources` to SourceDocuments ingested before 0.2.10. See the [PRD](docs/prd/research-knowledge-capture-PRD.md).
+**Version:** 0.2.13. `rkc_ingest.py --set-resources FILE --source-hash H` gives a looked-up URL list to a source whose dump cites works by name only. See the [PRD](docs/prd/research-knowledge-capture-PRD.md).
 
 ## What it owns
 
