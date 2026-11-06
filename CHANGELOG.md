@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.13 (2026-11-06)
+
+Set resources from a looked-up list.
+
+- **`rkc_ingest.py --set-resources FILE --source-hash H`** writes the `resources` list and the `## Resources` section on each `SourceDocument` with that `source_hash`. Use it for a dump that cites works by name with no URLs, so ingest and `--backfill-resources` find nothing.
+- `FILE` holds one `- Title: https://url` line per work, in citation order. Reading stops at a `# Not found` heading.
+- The command writes only when the source has no resources yet. It skips protected sources. `--dry-run` writes nothing.
+- Tests: `test_set_resources_from_a_looked_up_list`.
+
 ## 0.2.12 (2026-11-06)
 
 Backfill for SourceDocument resources.

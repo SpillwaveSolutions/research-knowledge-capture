@@ -154,6 +154,49 @@ def backfill_resources(knowledge: Path, subject: str | None = None, *, dry_run: 
     return out
 
 
+RESOURCE_LINE = re.compile(r"^-\s+(?P<title>.*?):\s+(?P<url>https?://\S+)\s*$")
+
+
+def read_resources_file(path: Path) -> list[dict]:
+    """`- Title: https://url` lines, in order, up to a `# Not found` heading."""
+    out: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip().lower().startswith("# not found"):
+            break
+        m = RESOURCE_LINE.match(line.strip())
+        if m and m.group("url") not in {r["url"] for r in out}:
+            out.append({"url": m.group("url").rstrip(".,;"), "title": _clean_title(m.group("title"))})
+    return out
+
+
+def set_resources(knowledge: Path, source_hash: str, resources: list[dict], *, dry_run: bool = False) -> dict:
+    """Give an existing SourceDocument a looked-up resource list.
+
+    For a dump that cites works by name with no URLs, so ingest and the backfill
+    found none. Writes only when the source has no resources yet; a protected
+    source is skipped. Matches by source_hash, so one call covers every copy.
+    """
+    from rkc_common import is_protected, parse_okf
+
+    want = source_hash if source_hash.startswith("sha256:") else f"sha256:{source_hash}"
+    out = {"updated": [], "skipped": []}
+    for p, fm, _body in iter_type(knowledge, "SourceDocument"):
+        if fm.get("source_hash") != want:
+            continue
+        if fm.get("resources"):
+            out["skipped"].append({"id": fm.get("id"), "why": "already has resources"})
+            continue
+        if is_protected(fm):
+            out["skipped"].append({"id": fm.get("id"), "why": "protected"})
+            continue
+        if not dry_run:
+            fm, body = parse_okf(p)
+            fm["resources"] = [r["url"] for r in resources]
+            write_okf(p, fm, body.rstrip("\n") + "\n" + resources_section(resources))
+        out["updated"].append({"id": fm.get("id"), "resources": len(resources)})
+    return out
+
+
 def source_title(src: Path) -> str:
     if src.stem.lower() in {"index", "readme"} and src.parent.name not in {"", ".", "/"}:
         return f"{src.parent.name}/{src.name}"
@@ -539,13 +582,27 @@ def main():
         action="store_true",
         help="Add resources to existing SourceDocuments of --subject ('*' for all) and exit. No inbox.",
     )
+    ap.add_argument(
+        "--set-resources",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="With --source-hash: set resources from FILE ('- Title: url' lines) on a source that has none, and exit.",
+    )
+    ap.add_argument("--source-hash", default=None, help="The SourceDocument source_hash that --set-resources targets.")
     args = ap.parse_args()
     if args.backfill_resources:
         subject = None if args.subject == "*" else slug(args.subject)
         print(json.dumps(backfill_resources(args.knowledge, subject, dry_run=args.dry_run), indent=2))
         return
+    if args.set_resources:
+        if not args.source_hash:
+            ap.error("--set-resources needs --source-hash")
+        found = read_resources_file(args.set_resources)
+        print(json.dumps(set_resources(args.knowledge, args.source_hash, found, dry_run=args.dry_run), indent=2))
+        return
     if args.inbox is None:
-        ap.error("inbox is required unless --backfill-resources is set")
+        ap.error("inbox is required unless --backfill-resources or --set-resources is set")
     prompt_hash = args.prompt_hash
     if args.prompt_file:
         prompt_hash = hashlib.sha256(args.prompt_file.read_bytes()).hexdigest()
