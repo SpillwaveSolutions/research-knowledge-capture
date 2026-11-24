@@ -38,7 +38,16 @@ python3 tests/test_plugin.py
 python3 tests/test_bulk_fixes.py
 python3 tests/test_spine.py
 python3 tests/test_search.py
+python3 tests/test_source_recall.py
 ```
+
+CI uses Python 3.12 with PyYAML installed. Run the commands from the repository
+root in that interpreter. PyYAML supports the full frontmatter used by the
+suite. The built-in fallback handles a subset. The offline source-recall test
+ingests an original measurement, a competing measurement and a correction.
+Search reads the Markdown tree directly. Follow the current claim’s
+`evidenced_by` edge and the evidence’s archived line range. A raw search can
+return both versions, so check the `supersedes` edge before reporting the value.
 
 Public samples are **Northstar / Lumenfield fiction**. Live dumps stay in private trees.
 
